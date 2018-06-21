@@ -178,6 +178,8 @@ char	qthfile[50], tlefile[50], dbfile[50], temp[80], output[25],
 
 int	indx, antfd, iaz, iel, ma256, isplat, isplong, socket_flag=0,
 	Flags=0;
+	
+int fel, faz, fdistance;
 
 long	rv, irk;
 
@@ -316,6 +318,15 @@ double ArcSin(double arg)
 	else
 
 	return(atan(arg/sqrt(1.0-arg*arg)));
+}
+
+void logh(char str[])
+{
+	FILE *fpt; 
+	char a[]="hello world!";
+	fpt = fopen("log.txt","a");// 
+	fprintf(fpt,"%s",str); 
+	fclose(fpt); 
 }
 
 double ArcCos(double arg)
@@ -3835,6 +3846,12 @@ void Calc()
 	isplong=(int)rint(360.0-sat_lon);
 	iaz=(int)rint(sat_azi);
 	iel=(int)rint(sat_ele);
+	
+	//char logb[50];
+  //sprintf (logb, "%d plus %d is %d", a, b, a+b);
+  //printf ("[%s] is a string %d chars long\n",buffer,n);
+	//logh("in calc");
+	
 	ma256=(int)rint(256.0*(phase/twopi));
 
 	if (sat_sun_status)
@@ -4254,10 +4271,14 @@ char mode;
 
 	int quit=0, lastel=0, breakout=0;
 	char string[80], type[10];
+	char loghContent[80];
 
 	PreCalc(indx);
 	daynum=GetStartTime(0);
 	clear();
+	
+	logh("In function of predict satellite passes.\n");
+
 
 	/* Trap geostationary orbits and passes that cannot occur. */
 
@@ -4281,17 +4302,25 @@ char mode;
 
 			while (iel>=0 && quit==0)
 			{
-				if (calc_squint)
-
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %4.0f %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,squint,findsun);
-
-				else
-					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %6ld %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,rv,findsun);
-
+				if (calc_squint){
+					sprintf(string,"     %s%4d %4d  %4d  %4d   %4d   %6ld  %4.0f %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,squint,findsun);
+				}
+				else{
+					sprintf(string,"%d %d %4.3f %4.3f %4.3f\n", (int)daynum, (int)((daynum-(int)daynum)*24*3600), sat_ele, sat_azi, sat_range);
+					//sprintf(string,"%s %4.3f %4.3f %4.3f\n", Daynum2String(daynum), sat_ele, sat_azi, sat_range);
+					//sprintf(string,"%s %f %f %f\n",Daynum2String(daynum),iel,iaz, irk);
+					//sprintf(string,"%s%4d %4d  %4d  %4d   %4d   %6ld  %6ld %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,rv,findsun);
+				}
 				lastel=iel;
 
 				if (mode=='p')
-					quit=Print(string,'p');
+					//quit=Print(string,'p');
+					
+					sprintf(loghContent,"     %f\n",daynum);
+					logh(loghContent);
+
+					
+					//logh(string);
 
 				if (mode=='v')
 				{
@@ -4310,7 +4339,7 @@ char mode;
 					quit=PrintVisible(string);
 				}
 
-				daynum+=cos((sat_ele-1.0)*deg2rad)*sqrt(sat_alt)/25000.0;
+				daynum+=1.0/24/3600;
 				Calc();
 			}
 
@@ -4319,14 +4348,16 @@ char mode;
 				daynum=FindLOS();
 				Calc();
 
-				if (calc_squint)
+				if (calc_squint){
 					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %4.0f %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,squint,findsun);
-
+					}
 				else
+					{
 					sprintf(string,"      %s%4d %4d  %4d  %4d   %4d   %6ld  %6ld %c\n",Daynum2String(daynum),iel,iaz,ma256,(io_lat=='N'?+1:-1)*isplat,(io_lon=='W'?isplong:360-isplong),irk,rv,findsun);
-
+				}
 				if (mode=='p')
 					quit=Print(string,'p');
+					logh(string);
 
 				if (mode=='v')
 					quit=PrintVisible(string);
@@ -4334,6 +4365,7 @@ char mode;
 
 			if (mode=='p')
 				quit=Print("\n",'p');
+				logh("\n");
 
 			if (mode=='v')
 				quit=PrintVisible("\n");
@@ -4360,6 +4392,9 @@ char mode;
 		AnyKey();
 		refresh();
 	}
+	
+	
+	logh("End of predict.\n");
 }
 
 void PredictMoon()
@@ -6098,7 +6133,7 @@ char *string, *outputfile;
 
 int main(argc,argv)
 char argc, *argv[];
-{
+{	
 	int x, y, z, key=0;
 	char updatefile[80], quickfind=0, quickpredict=0,
 	     quickstring[40], outputfile[42],
