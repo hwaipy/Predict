@@ -1,77 +1,119 @@
 package com.hwaipy.predict
 
-import java.io.File
+import java.io.{File, PrintWriter}
+import java.math.MathContext
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZoneId, ZoneOffset}
+import java.util.Date
+import ch.obermuhlner.math.big.BigDecimalMath
 import scala.collection.mutable.ArrayBuffer
 
-class Predict {
-  private val deg2rad = 1.745329251994330E-2
+class Predict(val precision: Int = 16) {
+
+  def abs(bigDecimal: BigDecimal): BigDecimal = bigDecimal >= 0 match {
+    case true => bigDecimal
+    case false => -bigDecimal
+  }
+
+  def sqrt(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.sqrt(bigDecimal.underlying(), new MathContext(precision))
+
+  def atan(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.atan(bigDecimal.underlying(), new MathContext(precision))
+
+  def sin(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.sin(bigDecimal.underlying(), new MathContext(precision))
+
+  def cos(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.cos(bigDecimal.underlying(), new MathContext(precision))
+
+  def acos(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.acos(bigDecimal.underlying(), new MathContext(precision))
+
+  def log(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.log(bigDecimal.underlying(), new MathContext(precision))
+
+  def exp(bigDecimal: BigDecimal): BigDecimal = BigDecimalMath.exp(bigDecimal.underlying(), new MathContext(precision))
+
+  def pow(bigDecimal: BigDecimal, y: Long): BigDecimal = BigDecimalMath.pow(bigDecimal.underlying(), y, new MathContext(precision))
+
+  def pow(bigDecimal: BigDecimal, y: BigDecimal): BigDecimal = BigDecimalMath.pow(bigDecimal.underlying(), y.underlying(), new MathContext(precision))
+
+  def floor(bigDecimal: BigDecimal): BigDecimal = bigDecimal >= 0 match {
+    case true => bigDecimal.toInt
+    case false => bigDecimal.toInt - 1
+  }
+
+  def rint(bigDecimal: BigDecimal): BigDecimal = {
+    val i = floor(bigDecimal)
+    (abs(i - bigDecimal)) < 0.5 match {
+      case true => i
+      case false => i + 1
+    }
+  }
+
+  private val deg2rad = BigDecimal(1.745329251994330E-2)
   /* Degrees to radians */
-  private val pio2 = Math.PI / 2
+  private val pio2 = BigDecimal(Math.PI / 2)
   /* Pi/2 */
   private val x3pio2 = pio2 * 3
   /* 3*Pi/2 */
-  private var twopi = Math.PI * 2
+  private var twopi = BigDecimal(Math.PI * 2)
   /* 2*Pi  */
-  private val e6a = 1.0E-6
-  private val tothrd = 6.6666666666666666E-1
+  private val e6a = BigDecimal(1.0E-6)
+  private val tothrd = BigDecimal(6.6666666666666666E-1)
   /* 2/3 */
-  private val xj2 = 1.0826158E-3
+  private val xj2 = BigDecimal(1.0826158E-3)
   /* J2 Harmonic (WGS '72) */
-  private val xj3 = -2.53881E-6
+  private val xj3 = BigDecimal(-2.53881E-6)
   /* J3 Harmonic (WGS '72) */
-  private val xj4 = -1.65597E-6
+  private val xj4 = BigDecimal(-1.65597E-6)
   /* J4 Harmonic (WGS '72) */
-  private val xke = 7.43669161E-2
-  private val xkmper = 6.378137E3
+  private val xke = BigDecimal(7.43669161E-2)
+  private val xkmper = BigDecimal(6.378137E3)
   /* WGS 84 Earth radius km */
-  private val xmnpda = 1.44E3
+  private val xmnpda = BigDecimal(1.44E3)
   /* Minutes per day */
-  private val ae = 1.0
-  private val ck2 = 5.413079E-4
-  private val ck4 = 6.209887E-7
-  private val f = 3.35281066474748E-3
+  private val ae = BigDecimal(1.0)
+  private val ck2 = BigDecimal(5.413079E-4)
+  private val ck4 = BigDecimal(6.209887E-7)
+  private val f = BigDecimal(3.35281066474748E-3)
   /* Flattening factor */
-  private val ge = 3.986008E5
+  private val ge = BigDecimal(3.986008E5)
   /* Earth gravitational constant (WGS '72) */
-  private val s = 1.012229
-  private val qoms2t = 1.880279E-09
-  private val secday = 8.6400E4
+  private val s = BigDecimal(1.012229)
+  private val qoms2t = BigDecimal(1.880279E-09)
+  private val secday = BigDecimal(8.6400E4)
   /* Seconds per day */
-  private val omega_E = 1.00273790934
+  private val omega_E = BigDecimal(1.00273790934)
   /* Earth rotations/siderial day */
-  private val omega_ER = 6.3003879
+  private val omega_ER = BigDecimal(6.3003879)
   /* Earth rotations, rads/siderial day */
-  private val zns = 1.19459E-5
-  private val c1ss = 2.9864797E-6
-  private val zes = 1.675E-2
-  private val znl = 1.5835218E-4
-  private val c1l = 4.7968065E-7
-  private val zel = 5.490E-2
-  private val zcosis = 9.1744867E-1
-  private val zsinis = 3.9785416E-1
-  private val zsings = -9.8088458E-1
-  private val zcosgs = 1.945905E-1
-  private val zcoshs = 1
-  private val zsinhs = 0
-  private val q22 = 1.7891679E-6
-  private val q31 = 2.1460748E-6
-  private val q33 = 2.2123015E-7
-  private val g22 = 5.7686396
-  private val g32 = 9.5240898E-1
-  private val g44 = 1.8014998
-  private val g52 = 1.0508330
-  private val g54 = 4.4108898
-  private val root22 = 1.7891679E-6
-  private val root32 = 3.7393792E-7
-  private val root44 = 7.3636953E-9
-  private val root52 = 1.1428639E-7
-  private val root54 = 2.1765803E-9
-  private val thdt = 4.3752691E-3
-  private val rho = 1.5696615E-1
-  private val mfactor = 7.292115E-5
-  private val sr = 6.96000E5
+  private val zns = BigDecimal(1.19459E-5)
+  private val c1ss = BigDecimal(2.9864797E-6)
+  private val zes = BigDecimal(1.675E-2)
+  private val znl = BigDecimal(1.5835218E-4)
+  private val c1l = BigDecimal(4.7968065E-7)
+  private val zel = BigDecimal(5.490E-2)
+  private val zcosis = BigDecimal(9.1744867E-1)
+  private val zsinis = BigDecimal(3.9785416E-1)
+  private val zsings = BigDecimal(-9.8088458E-1)
+  private val zcosgs = BigDecimal(1.945905E-1)
+  private val zcoshs = BigDecimal(1)
+  private val zsinhs = BigDecimal(0)
+  private val q22 = BigDecimal(1.7891679E-6)
+  private val q31 = BigDecimal(2.1460748E-6)
+  private val q33 = BigDecimal(2.2123015E-7)
+  private val g22 = BigDecimal(5.7686396)
+  private val g32 = BigDecimal(9.5240898E-1)
+  private val g44 = BigDecimal(1.8014998)
+  private val g52 = BigDecimal(1.0508330)
+  private val g54 = BigDecimal(4.4108898)
+  private val root22 = BigDecimal(1.7891679E-6)
+  private val root32 = BigDecimal(3.7393792E-7)
+  private val root44 = BigDecimal(7.3636953E-9)
+  private val root52 = BigDecimal(1.1428639E-7)
+  private val root54 = BigDecimal(2.1765803E-9)
+  private val thdt = BigDecimal(4.3752691E-3)
+  private val rho = BigDecimal(1.5696615E-1)
+  private val mfactor = BigDecimal(7.292115E-5)
+  private val sr = BigDecimal(6.96000E5)
   /* Solar radius - km (IAU 76) */
-  private val AU = 1.49597870691E8 /* Astronomical unit - km (IAU 76) */
+  private val AU = BigDecimal(1.49597870691E8) /* Astronomical unit - km (IAU 76) */
 
   /* Entry points of Deep() */
 
@@ -109,16 +151,16 @@ class Predict {
     var setnum = 0L
     var designator = ""
     var year = 0
-    var refepoch = .0
-    var incl = .0
-    var raan = .0
-    var eccn = .0
-    var argper = .0
-    var meanan = .0
-    var meanmo = .0
-    var drag = .0
-    var nddot6 = .0
-    var bstar = .0
+    var refepoch = BigDecimal(.0)
+    var incl = BigDecimal(.0)
+    var raan = BigDecimal(.0)
+    var eccn = BigDecimal(.0)
+    var argper = BigDecimal(.0)
+    var meanan = BigDecimal(.0)
+    var meanmo = BigDecimal(.0)
+    var drag = BigDecimal(.0)
+    var nddot6 = BigDecimal(.0)
+    var bstar = BigDecimal(.0)
     var orbitnum = 0L
   }
 
@@ -126,56 +168,56 @@ class Predict {
 
   class Qth {
     var callsign = new Array[Char](17)
-    var stnlat = .0
-    var stnlong = .0
+    var stnlat = BigDecimal(.0)
+    var stnlong = BigDecimal(.0)
     var stnalt = 0
   }
 
   var qth = new Qth
 
   /* Global variables for sharing data among functions... */
-  var tsince = .0
-  var jul_epoch = .0
-  var jul_utc = .0
+  var tsince = BigDecimal(.0)
+  var jul_epoch = BigDecimal(.0)
+  var jul_utc = BigDecimal(.0)
   var eclipse_depth = 0
-  var sat_azi = .0
-  var sat_ele = .0
-  var sat_range = .0
-  var sat_range_rate = .0
-  var sat_lat = .0
-  var sat_lon = .0
-  var sat_alt = .0
-  var sat_vel = .0
-  var phase = .0
-  var sun_azi = .0
-  var sun_ele = .0
-  var daynum = .0
-  var fm = .0
-  var fk = .0
-  var age = .0
-  var aostime = .0
-  var lostime = .0
-  var ax = .0
-  var ay = .0
-  var az = .0
-  var rx = .0
-  var ry = .0
-  var rz = .0
-  var squint = .0
-  var alat = .0
-  var alon = .0
-  var sun_ra = .0
-  var sun_dec = .0
-  var sun_lat = .0
-  var sun_lon = .0
-  var sun_range = .0
-  var sun_range_rate = .0
-  var moon_az = .0
-  var moon_el = .0
-  var moon_dx = .0
-  var moon_ra = .0
-  var moon_dec = .0
-  var moon_gha = .0
+  var sat_azi = BigDecimal(.0)
+  var sat_ele = BigDecimal(.0)
+  var sat_range = BigDecimal(.0)
+  var sat_range_rate = BigDecimal(.0)
+  var sat_lat = BigDecimal(.0)
+  var sat_lon = BigDecimal(.0)
+  var sat_alt = BigDecimal(.0)
+  var sat_vel = BigDecimal(.0)
+  var phase = BigDecimal(.0)
+  var sun_azi = BigDecimal(.0)
+  var sun_ele = BigDecimal(.0)
+  var daynum = BigDecimal(.0)
+  var fm = BigDecimal(.0)
+  var fk = BigDecimal(.0)
+  var age = BigDecimal(.0)
+  var aostime = BigDecimal(.0)
+  var lostime = BigDecimal(.0)
+  var ax = BigDecimal(.0)
+  var ay = BigDecimal(.0)
+  var az = BigDecimal(.0)
+  var rx = BigDecimal(.0)
+  var ry = BigDecimal(.0)
+  var rz = BigDecimal(.0)
+  var squint = BigDecimal(.0)
+  var alat = BigDecimal(.0)
+  var alon = BigDecimal(.0)
+  var sun_ra = BigDecimal(.0)
+  var sun_dec = BigDecimal(.0)
+  var sun_lat = BigDecimal(.0)
+  var sun_lon = BigDecimal(.0)
+  var sun_range = BigDecimal(.0)
+  var sun_range_rate = BigDecimal(.0)
+  var moon_az = BigDecimal(.0)
+  var moon_el = BigDecimal(.0)
+  var moon_dx = BigDecimal(.0)
+  var moon_ra = BigDecimal(.0)
+  var moon_dec = BigDecimal(.0)
+  var moon_gha = BigDecimal(.0)
   var temp = new Array[Char](80)
   var output = new Array[Char](25)
   var serial_port = new Array[Char](15)
@@ -208,19 +250,19 @@ class Predict {
  are updated in the MultiTrack() and SingleTrack() functions. */ var visibility_array = new Array[Char](24)
   var tracking_mode = new Array[Char](30)
 
-  var az_array = new Array[Double](24)
-  var el_array = new Array[Double](24)
-  var long_array = new Array[Double](24)
-  var lat_array = new Array[Double](24)
-  var footprint_array = new Array[Double](24)
-  var altitude_array = new Array[Double](24)
-  var velocity_array = new Array[Double](24)
-  var eclipse_depth_array = new Array[Double](24)
-  var phase_array = new Array[Double](24)
-  var squint_array = new Array[Double](24)
+  var az_array = new Array[BigDecimal](24)
+  var el_array = new Array[BigDecimal](24)
+  var long_array = new Array[BigDecimal](24)
+  var lat_array = new Array[BigDecimal](24)
+  var footprint_array = new Array[BigDecimal](24)
+  var altitude_array = new Array[BigDecimal](24)
+  var velocity_array = new Array[BigDecimal](24)
+  var eclipse_depth_array = new Array[BigDecimal](24)
+  var phase_array = new Array[BigDecimal](24)
+  var squint_array = new Array[BigDecimal](24)
 
-  var doppler = new Array[Double](24)
-  var nextevent = new Array[Double](24)
+  var doppler = new Array[BigDecimal](24)
+  var nextevent = new Array[BigDecimal](24)
 
   var aos_array = new Array[Long](24)
   var orbitnum_array = new Array[Long](24)
@@ -233,16 +275,16 @@ class Predict {
     */
   /* Two-line-element satellite orbital data
      structure used directly by the SGP4/SDP4 code. */ class tle_t {
-    var epoch = .0
-    var xndt2o = .0
-    var xndd6o = .0
-    var bstar = .0
-    var xincl = .0
-    var xnodeo = .0
-    var eo = .0
-    var omegao = .0
-    var xmo = .0
-    var xno = .0
+    var epoch = BigDecimal(.0)
+    var xndt2o = BigDecimal(.0)
+    var xndd6o = BigDecimal(.0)
+    var bstar = BigDecimal(.0)
+    var xincl = BigDecimal(.0)
+    var xnodeo = BigDecimal(.0)
+    var eo = BigDecimal(.0)
+    var omegao = BigDecimal(.0)
+    var xmo = BigDecimal(.0)
+    var xno = BigDecimal(.0)
     var catnr = 0L
     var elset = 0L
     var revnum = 0L
@@ -250,46 +292,49 @@ class Predict {
     var idesg = ""
   }
 
-  /* Geodetic position structure used by SGP4/SDP4 code. */ class geodetic_t {
-    var lat = .0
-    var lon = .0
-    var alt = .0
-    var theta = .0
+  /* Geodetic position structure used by SGP4/SDP4 code. */
+  class geodetic_t {
+    var lat = BigDecimal(.0)
+    var lon = BigDecimal(.0)
+    var alt = BigDecimal(.0)
+    var theta = BigDecimal(.0)
   }
 
-  /* General three-dimensional vector structure used by SGP4/SDP4 code. */ class vector_t {
-    var x = .0
-    var y = .0
-    var z = .0
-    var w = .0
+  /* General three-dimensional vector structure used by SGP4/SDP4 code. */
+  class vector_t {
+    var x = BigDecimal(.0)
+    var y = BigDecimal(.0)
+    var z = BigDecimal(.0)
+    var w = BigDecimal(.0)
   }
 
 
   /* Common arguments between deep-space functions used by SGP4/SDP4 code. */
   class deep_arg_t {
-    /* Used by dpinit part of Deep() */ var eosq = .0
-    var sinio = .0
-    var cosio = .0
-    var betao = .0
-    var aodp = .0
-    var theta2 = .0
-    var sing = .0
-    var cosg = .0
-    var betao2 = .0
-    var xmdot = .0
-    var omgdot = .0
-    var xnodot = .0
-    var xnodp = .0
+    /* Used by dpinit part of Deep() */
+    var eosq = BigDecimal(.0)
+    var sinio = BigDecimal(.0)
+    var cosio = BigDecimal(.0)
+    var betao = BigDecimal(.0)
+    var aodp = BigDecimal(.0)
+    var theta2 = BigDecimal(.0)
+    var sing = BigDecimal(.0)
+    var cosg = BigDecimal(.0)
+    var betao2 = BigDecimal(.0)
+    var xmdot = BigDecimal(.0)
+    var omgdot = BigDecimal(.0)
+    var xnodot = BigDecimal(.0)
+    var xnodp = BigDecimal(.0)
     /* Used by dpsec and dpper parts of Deep() */
-    var xll = .0
-    var omgadf = .0
-    var xnode = .0
-    var em = .0
-    var xinc = .0
-    var xn = .0
-    var t = .0
+    var xll = BigDecimal(.0)
+    var omgadf = BigDecimal(.0)
+    var xnode = BigDecimal(.0)
+    var em = BigDecimal(.0)
+    var xinc = BigDecimal(.0)
+    var xn = BigDecimal(.0)
+    var t = BigDecimal(.0)
     /* Used by thetg and Deep() */
-    var ds50 = .0
+    var ds50 = BigDecimal(.0)
   }
 
   /* Global structure used by SGP4/SDP4 code. */
@@ -314,7 +359,7 @@ class Predict {
   }
 
   /* Remaining SGP4/SDP4 code follows... */
-  def Sign(arg: Double): Int = {
+  def Sign(arg: BigDecimal): Int = {
     /* Returns sign of a double */ if (arg > 0) {
       return 1
     }
@@ -328,91 +373,97 @@ class Predict {
     }
   }
 
-  def Sqr(arg: Double): Double = /* Returns square of a double */ arg * arg
+  def Sqr(arg: BigDecimal): BigDecimal = /* Returns square of a double */ arg * arg
 
-  def Cube(arg: Double): Double = /* Returns cube of a double */ arg * arg * arg
+  def Cube(arg: BigDecimal): BigDecimal = /* Returns cube of a double */ arg * arg * arg
 
-  def Radians(arg: Double): Double = /* Returns angle in radians from argument in degrees */ arg * deg2rad
+  def Radians(arg: BigDecimal): BigDecimal = /* Returns angle in radians from argument in degrees */ arg * deg2rad
 
-  def Degrees(arg: Double): Double = /* Returns angle in degrees from argument in radians */ arg / deg2rad
+  def Degrees(arg: BigDecimal): BigDecimal = /* Returns angle in degrees from argument in radians */ arg / deg2rad
 
-  def ArcSin(arg: Double): Double = /* Returns the arcsine of the argument */ if (Math.abs(arg) >= 1.0) Sign(arg) * pio2
-  else Math.atan(arg / Math.sqrt(1.0 - arg * arg))
+  def ArcSin(arg: BigDecimal): BigDecimal = /* Returns the arcsine of the argument */
+    if (abs(arg) >= 1.0) Sign(arg) * pio2
+    else atan(arg / sqrt(1.0 - arg * arg))
 
-  def ArcCos(arg: Double): Double = /* Returns arccosine of argument */ pio2 - ArcSin(arg)
+  def ArcCos(arg: BigDecimal): BigDecimal = /* Returns arccosine of argument */ pio2 - ArcSin(arg)
 
-  def Magnitude(v: Predict#vector_t): Unit = {
-    /* Calculates scalar magnitude of a vector_t argument */ v.w = Math.sqrt(Sqr(v.x) + Sqr(v.y) + Sqr(v.z))
+  def Magnitude(v: vector_t): Unit = {
+    /* Calculates scalar magnitude of a vector_t argument */
+    v.w = sqrt(Sqr(v.x) + Sqr(v.y) + Sqr(v.z))
   }
 
-  def Vec_Add(v1: Predict#vector_t, v2: Predict#vector_t, v3: Predict#vector_t): Unit = {
-    /* Adds vectors v1 and v2 together to produce v3 */ v3.x = v1.x + v2.x
+  def Vec_Add(v1: vector_t, v2: vector_t, v3: vector_t): Unit = {
+    /* Adds vectors v1 and v2 together to produce v3 */
+    v3.x = v1.x + v2.x
     v3.y = v1.y + v2.y
     v3.z = v1.z + v2.z
     Magnitude(v3)
   }
 
-  def Vec_Sub(v1: Predict#vector_t, v2: Predict#vector_t, v3: Predict#vector_t): Unit = {
-    /* Subtracts vector v2 from v1 to produce v3 */ v3.x = v1.x - v2.x
+  def Vec_Sub(v1: vector_t, v2: vector_t, v3: vector_t): Unit = {
+    /* Subtracts vector v2 from v1 to produce v3 */
+    v3.x = v1.x - v2.x
     v3.y = v1.y - v2.y
     v3.z = v1.z - v2.z
     Magnitude(v3)
   }
 
-  def Scalar_Multiply(k: Double, v1: Predict#vector_t, v2: Predict#vector_t): Unit = {
+  def Scalar_Multiply(k: BigDecimal, v1: vector_t, v2: vector_t): Unit = {
     /* Multiplies the vector v1 by the scalar k to produce the vector v2 */ v2.x = k * v1.x
     v2.y = k * v1.y
     v2.z = k * v1.z
-    v2.w = Math.abs(k) * v1.w
+    v2.w = abs(k) * v1.w
   }
 
-  def Scale_Vector(k: Double, v: Predict#vector_t): Unit = {
+  def Scale_Vector(k: BigDecimal, v: vector_t): Unit = {
     /* Multiplies the vector v1 by the scalar k */ v.x *= k
     v.y *= k
     v.z *= k
     Magnitude(v)
   }
 
-  def Dot(v1: Predict#vector_t, v2: Predict#vector_t): Double = /* Returns the dot product of two vectors */ v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+  def Dot(v1: vector_t, v2: vector_t): BigDecimal = /* Returns the dot product of two vectors */ v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
 
-  def Angle(v1: Predict#vector_t, v2: Predict#vector_t): Double = {
+  def Angle(v1: vector_t, v2: vector_t): BigDecimal = {
     /* Calculates the angle between vectors v1 and v2 */ Magnitude(v1)
     Magnitude(v2)
     ArcCos(Dot(v1, v2) / (v1.w * v2.w))
   }
 
-  def Cross(v1: Predict#vector_t, v2: Predict#vector_t, v3: Predict#vector_t): Unit = {
+  def Cross(v1: vector_t, v2: vector_t, v3: vector_t): Unit = {
     /* Produces cross product of v1 and v2, and returns in v3 */ v3.x = v1.y * v2.z - v1.z * v2.y
     v3.y = v1.z * v2.x - v1.x * v2.z
     v3.z = v1.x * v2.y - v1.y * v2.x
     Magnitude(v3)
   }
 
-  def Normalize(v: Predict#vector_t): Unit = {
-    /* Normalizes a vector */ v.x /= v.w
+  def Normalize(v: vector_t): Unit = {
+    /* Normalizes a vector */
+    v.x /= v.w
     v.y /= v.w
     v.z /= v.w
   }
 
-  def AcTan(sinx: Double, cosx: Double): Double = /* Four-quadrant arctan function */ if (cosx == 0.0) if (sinx > 0.0) pio2
+  def AcTan(sinx: BigDecimal, cosx: BigDecimal): BigDecimal = /* Four-quadrant arctan function */ if (cosx == 0.0) if (sinx > 0.0) pio2
   else x3pio2
-  else if (cosx > 0.0) if (sinx > 0.0) Math.atan(sinx / cosx)
-  else twopi + Math.atan(sinx / cosx)
-  else Math.PI + Math.atan(sinx / cosx)
+  else if (cosx > 0.0) if (sinx > 0.0) atan(sinx / cosx)
+  else twopi + atan(sinx / cosx)
+  else Math.PI + atan(sinx / cosx)
 
-  def FMod2p(x: Double): Double = {
-    /* Returns mod 2PI of argument */ var i = 0
-    var ret_val = .0
+  def FMod2p(x: BigDecimal): BigDecimal = {
+    /* Returns mod 2PI of argument */
+    var i = 0
+    var ret_val = BigDecimal(.0)
     ret_val = x
-    i = (ret_val / twopi).asInstanceOf[Int]
+    i = (ret_val / twopi).toInt
     ret_val -= i * twopi
     if (ret_val < 0.0) ret_val += twopi
     ret_val
   }
 
-  def Modulus(arg1: Double, arg2: Double): Double = {
+  def Modulus(arg1: BigDecimal, arg2: BigDecimal): BigDecimal = {
     /* Returns arg1 mod arg2 */ var i = 0
-    var ret_val = .0
+    var ret_val = BigDecimal(.0)
     ret_val = arg1
     i = (ret_val / arg2).toInt
     ret_val -= i * arg2
@@ -420,41 +471,43 @@ class Predict {
     ret_val
   }
 
-  def Frac(arg: Double): Double = /* Returns fractional part of double argument */ arg - Math.floor(arg)
+  def Frac(arg: BigDecimal): BigDecimal = /* Returns fractional part of double argument */ arg - floor(arg)
 
-  def Round(arg: Double): Int = /* Returns argument rounded up to nearest integer */ Math.floor(arg + 0.5).toInt
+  def Round(arg: BigDecimal): Int = /* Returns argument rounded up to nearest integer */ floor(arg + 0.5).toInt
 
-  def Int(arg: Double): Double = /* Returns the floor integer of a double arguement, as double */ Math.floor(arg)
+  def Int(arg: BigDecimal): BigDecimal = /* Returns the floor integer of a double arguement, as double */ floor(arg)
 
-  def Convert_Sat_State(pos: Predict#vector_t, vel: Predict#vector_t): Unit = {
+  def Convert_Sat_State(pos: vector_t, vel: vector_t): Unit = {
     /* Converts the satellite's position and velocity  *//* vectors from normalized values to km and km/sec */ Scale_Vector(xkmper, pos)
     Scale_Vector(xkmper * xmnpda / secday, vel)
   }
 
-  def Julian_Date_of_Year(yearPara: Double): Double = {
+  def Julian_Date_of_Year(yearPara: BigDecimal): BigDecimal = {
     /* The function Julian_Date_of_Year calculates the Julian Date  *//* of Day 0.0 of {year}. This function is used to calculate the *//* Julian Date of any date by using Julian_Date_of_Year, DOY,   *//* and Fraction_of_Day. *//* Astronomical Formulae for Calculators, Jean Meeus, *//* pages 23-25. Calculate Julian Date of 0.0 Jan year */ var A = 0L
     var B = 0L
     var i = 0L
-    var jdoy = .0
+    var jdoy = BigDecimal(.0)
     var year = yearPara - 1
     i = (year / 100).toLong
     A = i
     i = A / 4
     B = 2 - A + i
-    i = (365.25 * year).toLong
+    i = (BigDecimal(365.25) * year).toLong
     i += (30.6001 * 14).toLong
-    jdoy = i + 1720994.5 + B
+    jdoy = i + BigDecimal(1720994.5) + B
     jdoy
   }
 
-  def modf_Integer(x: Double): Double = x.toInt
+  def modf_Integer(x: BigDecimal): BigDecimal = x.toInt
 
-  def modf_Frac(x: Double): Double = x - x.toInt
+  def modf_Frac(x: BigDecimal): BigDecimal = x - x.toInt
 
-  def Julian_Date_of_Epoch(epoch: Double): Double = {
-    /* The function Julian_Date_of_Epoch returns the Julian Date of     *//* an epoch specified in the format used in the NORAD two-line      *//* element sets. It has been modified to support dates beyond       *//* the year 1999 assuming that two-digit years in the range 00-56   *//* correspond to 2000-2056. Until the two-line element set format   *//* is changed, it is only valid for dates through 2056 December 31. */ var year = .0
-    var day = .0
-    /* Modification to support Y2K *//* Valid 1957 through 2056     */ year = modf_Integer(epoch * 1E-3)
+  def Julian_Date_of_Epoch(epoch: BigDecimal): BigDecimal = {
+    /* The function Julian_Date_of_Epoch returns the Julian Date of     *//* an epoch specified in the format used in the NORAD two-line      *//* element sets. It has been modified to support dates beyond       *//* the year 1999 assuming that two-digit years in the range 00-56   *//* correspond to 2000-2056. Until the two-line element set format   *//* is changed, it is only valid for dates through 2056 December 31. */
+    var year = BigDecimal(.0)
+    var day = BigDecimal(.0)
+    /* Modification to support Y2K *//* Valid 1957 through 2056     */
+    year = modf_Integer(epoch * 1E-3)
     day = modf_Frac(epoch * 1E-3) * 1E3
     if (year < 57) year = year + 2000
     else year = year + 1900
@@ -473,20 +526,22 @@ class Predict {
       day += days(i)
 
       {
-        i += 1;
+        i += 1
         i - 1
       }
     }
     day = day + dy
-    /* Leap year correction */ if ((yr % 4 == 0) && ((yr % 100 != 0) || (yr % 400 == 0)) && (mo > 2)) day += 1
+    /* Leap year correction */
+    if ((yr % 4 == 0) && ((yr % 100 != 0) || (yr % 400 == 0)) && (mo > 2)) day += 1
     day
   }
 
-  def Fraction_of_Day(hr: Int, mi: Int, se: Double): Double = {
-    /* Fraction_of_Day calculates the fraction of *//* a day passed at the specified input time.  */ var dhr = .0
-    var dmi = .0
-    dhr = hr.toDouble
-    dmi = mi.toDouble
+  def Fraction_of_Day(hr: Int, mi: Int, se: BigDecimal): BigDecimal = {
+    /* Fraction_of_Day calculates the fraction of *//* a day passed at the specified input time.  */
+    var dhr = BigDecimal(.0)
+    var dmi = BigDecimal(.0)
+    dhr = hr
+    dmi = mi
     (dhr + (dmi + se / 60.0) / 60.0) / 24.0
   }
 
@@ -510,28 +565,32 @@ class Predict {
     val tm_isdst = 0 /* 夏令时标识符，实行夏令时的时候，tm_isdst为正。不实行夏令时的时候，tm_isdst为0；不了解情况时，tm_isdst()为负。*/
   }
 
-  def Julian_Date(cdate: tm): Double = {
-    /* The function Julian_Date converts a standard calendar   *//* date and time to a Julian Date. The procedure Date_Time *//* performs the inverse of this function. */ var julian_date = .0
+  def Julian_Date(cdate: tm): BigDecimal = {
+    /* The function Julian_Date converts a standard calendar   *//* date and time to a Julian Date. The procedure Date_Time *//* performs the inverse of this function. */
+    var julian_date = BigDecimal(.0)
     julian_date = Julian_Date_of_Year(cdate.tm_year) + DOY(cdate.tm_year, cdate.tm_mon, cdate.tm_mday) + Fraction_of_Day(cdate.tm_hour, cdate.tm_min, cdate.tm_sec) + 5.787037e-06 /* Round up to nearest 1 sec */
     julian_date
   }
 
-  def Delta_ET(year: Double): Double = {
+  def Delta_ET(year: BigDecimal): BigDecimal = {
     /* The function Delta_ET has been added to allow calculations on   *//* the position of the sun.  It provides the difference between UT *//* (approximately the same as UTC) and ET (now referred to as TDT).*//* This function is based on a least squares fit of data from 1950 *//* to 1991 and will need to be updated periodically. *//* Values determined using data from 1950-1991 in the 1990
-     Astronomical Almanac.  See DELTA_ET.WQ1 for details. */ var delta_et = .0
-    delta_et = 26.465 + 0.747622 * (year - 1950) + 1.886913 * Math.sin(twopi * (year - 1975) / 33)
+     Astronomical Almanac.  See DELTA_ET.WQ1 for details. */
+    var delta_et = BigDecimal(.0)
+    delta_et = 26.465 + 0.747622 * (year - 1950) + 1.886913 * sin(twopi * (year - 1975) / 33)
     delta_et
   }
 
-  def ThetaG(epoch: Double, deep_arg: Predict#deep_arg_t): Double = {
-    /* The function ThetaG calculates the Greenwich Mean Sidereal Time *//* for an epoch specified in the format used in the NORAD two-line *//* element sets. It has now been adapted for dates beyond the year *//* 1999, as described above. The function ThetaG_JD provides the   *//* same calculation except that it is based on an input in the     *//* form of a Julian Date. *//* Reference:  The 1992 Astronomical Almanac, page B6. */ var year = .0
-    var day = .0
-    var UT = .0
-    var jd = .0
-    var TU = .0
-    var GMST = .0
-    var ThetaG = .0
-    /* Modification to support Y2K *//* Valid 1957 through 2056     */ year = modf_Integer(epoch * 1E-3)
+  def ThetaG(epoch: BigDecimal, deep_arg: deep_arg_t): BigDecimal = {
+    /* The function ThetaG calculates the Greenwich Mean Sidereal Time *//* for an epoch specified in the format used in the NORAD two-line *//* element sets. It has now been adapted for dates beyond the year *//* 1999, as described above. The function ThetaG_JD provides the   *//* same calculation except that it is based on an input in the     *//* form of a Julian Date. *//* Reference:  The 1992 Astronomical Almanac, page B6. */
+    var year = BigDecimal(.0)
+    var day = BigDecimal(.0)
+    var UT = BigDecimal(.0)
+    var jd = BigDecimal(.0)
+    var TU = BigDecimal(.0)
+    var GMST = BigDecimal(.0)
+    var ThetaG = BigDecimal(.0)
+    /* Modification to support Y2K *//* Valid 1957 through 2056     */
+    year = modf_Integer(epoch * 1E-3)
     day = modf_Frac(epoch * 1E-3) * 1E3
     if (year < 57) year += 2000
     else year += 1900
@@ -547,11 +606,11 @@ class Predict {
     ThetaG
   }
 
-  def ThetaG_JD(jdPara: Double): Double = {
+  def ThetaG_JD(jdPara: BigDecimal): BigDecimal = {
     var jd = jdPara
-    var UT = .0
-    var TU = .0
-    var GMST = .0
+    var UT = BigDecimal(.0)
+    var TU = BigDecimal(.0)
+    var GMST = BigDecimal(.0)
     UT = Frac(jd + 0.5)
     jd = jd - UT
     TU = (jd - 2451545.0) / 36525
@@ -560,46 +619,49 @@ class Predict {
     twopi * GMST / secday
   }
 
-  def Calculate_Solar_Position(time: Double, solar_vector: Predict#vector_t): Unit = {
-    /* Calculates solar position vector */ var mjd = .0
-    var year = .0
-    var T = .0
-    var M = .0
-    var L = .0
-    var e = .0
-    var C = .0
-    var O = .0
-    var Lsa = .0
-    var nu = .0
-    var R = .0
-    var eps = .0
+  def Calculate_Solar_Position(time: BigDecimal, solar_vector: vector_t): Unit = {
+    /* Calculates solar position vector */
+    var mjd = BigDecimal(.0)
+    var year = BigDecimal(.0)
+    var T = BigDecimal(.0)
+    var M = BigDecimal(.0)
+    var L = BigDecimal(.0)
+    var e = BigDecimal(.0)
+    var C = BigDecimal(.0)
+    var O = BigDecimal(.0)
+    var Lsa = BigDecimal(.0)
+    var nu = BigDecimal(.0)
+    var R = BigDecimal(.0)
+    var eps = BigDecimal(.0)
     mjd = time - 2415020.0
     year = 1900 + mjd / 365.25
     T = (mjd + Delta_ET(year) / secday) / 36525.0
     M = Radians(Modulus(358.47583 + Modulus(35999.04975 * T, 360.0) - (0.000150 + 0.0000033 * T) * Sqr(T), 360.0))
     L = Radians(Modulus(279.69668 + Modulus(36000.76892 * T, 360.0) + 0.0003025 * Sqr(T), 360.0))
     e = 0.01675104 - (0.0000418 + 0.000000126 * T) * T
-    C = Radians((1.919460 - (0.004789 + 0.000014 * T) * T) * Math.sin(M) + (0.020094 - 0.000100 * T) * Math.sin(2 * M) + 0.000293 * Math.sin(3 * M))
+    C = Radians((1.919460 - (0.004789 + 0.000014 * T) * T) * sin(M) + (0.020094 - 0.000100 * T) * sin(2 * M) + 0.000293 * sin(3 * M))
     O = Radians(Modulus(259.18 - 1934.142 * T, 360.0))
-    Lsa = Modulus(L + C - Radians(0.00569 - 0.00479 * Math.sin(O)), twopi)
+    Lsa = Modulus(L + C - Radians(0.00569 - 0.00479 * sin(O)), twopi)
     nu = Modulus(M + C, twopi)
-    R = 1.0000002 * (1.0 - Sqr(e)) / (1.0 + e * Math.cos(nu))
-    eps = Radians(23.452294 - (0.0130125 + (0.00000164 - 0.000000503 * T) * T) * T + 0.00256 * Math.cos(O))
+    R = 1.0000002 * (1.0 - Sqr(e)) / (1.0 + e * cos(nu))
+    eps = Radians(23.452294 - (0.0130125 + (0.00000164 - 0.000000503 * T) * T) * T + 0.00256 * cos(O))
     R = AU * R
-    solar_vector.x = R * Math.cos(Lsa)
-    solar_vector.y = R * Math.sin(Lsa) * Math.cos(eps)
-    solar_vector.z = R * Math.sin(Lsa) * Math.sin(eps)
+    solar_vector.x = R * cos(Lsa)
+    solar_vector.y = R * sin(Lsa) * cos(eps)
+    solar_vector.z = R * sin(Lsa) * sin(eps)
     solar_vector.w = R
   }
 
-  def Sat_Eclipsed(pos: vector_t, sol: vector_t, depth: Double) = {
-    /* Calculates satellite's eclipse status and depth */ var ret_depth = 0
-    var sd_sun = .0
-    var sd_earth = .0
-    var delta = .0
+  def Sat_Eclipsed(pos: vector_t, sol: vector_t, depth: BigDecimal) = {
+    /* Calculates satellite's eclipse status and depth */
+    var ret_depth = 0
+    var sd_sun = BigDecimal(.0)
+    var sd_earth = BigDecimal(.0)
+    var delta = BigDecimal(.0)
     val Rho = new vector_t
     val earth = new vector_t
-    /* Determine partial eclipse */ sd_earth = ArcSin(xkmper / pos.w)
+    /* Determine partial eclipse */
+    sd_earth = ArcSin(xkmper / pos.w)
     Vec_Sub(sol, pos, Rho)
     sd_sun = ArcSin(sr / Rho.w)
     Scalar_Multiply(-1, pos, earth)
@@ -610,17 +672,19 @@ class Predict {
     else (false, ret_depth)
   }
 
-  def select_ephemeris(tle: Predict#tle_t): Unit = {
-    /* Selects the apropriate ephemeris type to be used *//* for predictions according to the data in the TLE *//* It also processes values in the tle set so that  *//* they are apropriate for the sgp4/sdp4 routines   */ var ao = .0
-    var xnodp = .0
-    var dd1 = .0
-    var dd2 = .0
-    var delo = .0
-    var temp = .0
-    var a1 = .0
-    var del1 = .0
-    var r1 = .0
-    /* Preprocess tle set */ tle.xnodeo *= deg2rad
+  def select_ephemeris(tle: tle_t): Unit = {
+    /* Selects the apropriate ephemeris type to be used *//* for predictions according to the data in the TLE *//* It also processes values in the tle set so that  *//* they are apropriate for the sgp4/sdp4 routines   */
+    var ao = BigDecimal(.0)
+    var xnodp = BigDecimal(.0)
+    var dd1 = BigDecimal(.0)
+    var dd2 = BigDecimal(.0)
+    var delo = BigDecimal(.0)
+    var temp = BigDecimal(.0)
+    var a1 = BigDecimal(.0)
+    var del1 = BigDecimal(.0)
+    var r1 = BigDecimal(.0)
+    /* Preprocess tle set */
+    tle.xnodeo *= deg2rad
     tle.omegao *= deg2rad
     tle.xmo *= deg2rad
     tle.xincl *= deg2rad
@@ -629,12 +693,13 @@ class Predict {
     tle.xndt2o *= temp
     tle.xndd6o = tle.xndd6o * temp / xmnpda
     tle.bstar /= ae
-    /* Period > 225 minutes is deep space */ dd1 = xke / tle.xno
+    /* Period > 225 minutes is deep space */
+    dd1 = xke / tle.xno
     dd2 = tothrd
-    a1 = Math.pow(dd1, dd2)
-    r1 = Math.cos(tle.xincl)
+    a1 = pow(dd1, dd2)
+    r1 = cos(tle.xincl)
     dd1 = 1.0 - tle.eo * tle.eo
-    temp = ck2 * 1.5f * (r1 * r1 * 3.0 - 1.0) / Math.pow(dd1, 1.5)
+    temp = ck2 * 1.5 * (r1 * r1 * 3.0 - 1.0) / pow(dd1, 1.5)
     del1 = temp / (a1 * a1)
     ao = a1 * (1.0 - del1 * (tothrd * .5 + del1 * (del1 * 1.654320987654321 + 1.0)))
     delo = temp / (ao * ao)
@@ -645,150 +710,154 @@ class Predict {
 
   val sgp4Object = new SGP4Class
 
-  def SGP4(tsince: Double, tle: Predict#tle_t, pos: Predict#vector_t, vel: Predict#vector_t): Unit = {
+  def SGP4(tsince: BigDecimal, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
     sgp4Object.SGP4(tsince, tle, pos, vel)
   }
 
   class SGP4Class {
-    var aodp = .0
-    var aycof = .0
-    var c1 = .0
-    var c4 = .0
-    var c5 = .0
-    var cosio = .0
-    var d2 = .0
-    var d3 = .0
-    var d4 = .0
-    var delmo = .0
-    var omgcof = .0
-    var eta = .0
-    var omgdot = .0
-    var sinio = .0
-    var xnodp = .0
-    var sinmo = .0
-    var t2cof = .0
-    var t3cof = .0
-    var t4cof = .0
-    var t5cof = .0
-    var x1mth2 = .0
-    var x3thm1 = .0
-    var x7thm1 = .0
-    var xmcof = .0
-    var xmdot = .0
-    var xnodcf = .0
-    var xnodot = .0
-    var xlcof = .0
+    var aodp = BigDecimal(.0)
+    var aycof = BigDecimal(.0)
+    var c1 = BigDecimal(.0)
+    var c4 = BigDecimal(.0)
+    var c5 = BigDecimal(.0)
+    var cosio = BigDecimal(.0)
+    var d2 = BigDecimal(.0)
+    var d3 = BigDecimal(.0)
+    var d4 = BigDecimal(.0)
+    var delmo = BigDecimal(.0)
+    var omgcof = BigDecimal(.0)
+    var eta = BigDecimal(.0)
+    var omgdot = BigDecimal(.0)
+    var sinio = BigDecimal(.0)
+    var xnodp = BigDecimal(.0)
+    var sinmo = BigDecimal(.0)
+    var t2cof = BigDecimal(.0)
+    var t3cof = BigDecimal(.0)
+    var t4cof = BigDecimal(.0)
+    var t5cof = BigDecimal(.0)
+    var x1mth2 = BigDecimal(.0)
+    var x3thm1 = BigDecimal(.0)
+    var x7thm1 = BigDecimal(.0)
+    var xmcof = BigDecimal(.0)
+    var xmdot = BigDecimal(.0)
+    var xnodcf = BigDecimal(.0)
+    var xnodot = BigDecimal(.0)
+    var xlcof = BigDecimal(.0)
 
-    def SGP4(tsince: Double, tle: Predict#tle_t, pos: Predict#vector_t, vel: Predict#vector_t): Unit = {
-      /* This function is used to calculate the position and velocity *//* of near-earth (period < 225 minutes) satellites. tsince is   *//* time since epoch in minutes, tle is a pointer to a tle_t     *//* structure with Keplerian orbital elements and pos and vel    *//* are vector_t structures returning ECI satellite position and *//* velocity. Use Convert_Sat_State() to convert to km and km/s. */ var cosuk = .0
-      var sinuk = .0
-      var rfdotk = .0
-      var vx = .0
-      var vy = .0
-      var vz = .0
-      var ux = .0
-      var uy = .0
-      var uz = .0
-      var xmy = .0
-      var xmx = .0
-      var cosnok = .0
-      var sinnok = .0
-      var cosik = .0
-      var sinik = .0
-      var rdotk = .0
-      var xinck = .0
-      var xnodek = .0
-      var uk = .0
-      var rk = .0
-      var cos2u = .0
-      var sin2u = .0
-      var u = .0
-      var sinu = .0
-      var cosu = .0
-      var betal = .0
-      var rfdot = .0
-      var rdot = .0
-      var r = .0
-      var pl = .0
-      var elsq = .0
-      var esine = .0
-      var ecose = .0
-      var epw = .0
-      var cosepw = .0
-      var x1m5th = .0
-      var xhdot1 = .0
-      var tfour = .0
-      var sinepw = .0
-      var capu = .0
-      var ayn = .0
-      var xlt = .0
-      var aynl = .0
-      var xll = .0
-      var axn = .0
-      var xn = .0
-      var beta = .0
-      var xl = .0
-      var e = .0
-      var a = .0
-      var tcube = .0
-      var delm = .0
-      var delomg = .0
-      var templ = .0
-      var tempe = .0
-      var tempa = .0
-      var xnode = .0
-      var tsq = .0
-      var xmp = .0
-      var omega = .0
-      var xnoddf = .0
-      var omgadf = .0
-      var xmdf = .0
-      var a1 = .0
-      var a3ovk2 = .0
-      var ao = .0
-      var betao = .0
-      var betao2 = .0
-      var c1sq = .0
-      var c2 = .0
-      var c3 = .0
-      var coef = .0
-      var coef1 = .0
-      var del1 = .0
-      var delo = .0
-      var eeta = .0
-      var eosq = .0
-      var etasq = .0
-      var perigee = .0
-      var pinvsq = .0
-      var psisq = .0
-      var qoms24 = .0
-      var s4 = .0
-      var temp = .0
-      var temp1 = .0
-      var temp2 = .0
-      var temp3 = .0
-      var temp4 = .0
-      var temp5 = .0
-      var temp6 = .0
-      var theta2 = .0
-      var theta4 = .0
-      var tsi = .0
+    def SGP4(tsince: BigDecimal, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
+      /* This function is used to calculate the position and velocity *//* of near-earth (period < 225 minutes) satellites. tsince is   *//* time since epoch in minutes, tle is a pointer to a tle_t     *//* structure with Keplerian orbital elements and pos and vel    *//* are vector_t structures returning ECI satellite position and *//* velocity. Use Convert_Sat_State() to convert to km and km/s. */
+      var cosuk = BigDecimal(.0)
+      var sinuk = BigDecimal(.0)
+      var rfdotk = BigDecimal(.0)
+      var vx = BigDecimal(.0)
+      var vy = BigDecimal(.0)
+      var vz = BigDecimal(.0)
+      var ux = BigDecimal(.0)
+      var uy = BigDecimal(.0)
+      var uz = BigDecimal(.0)
+      var xmy = BigDecimal(.0)
+      var xmx = BigDecimal(.0)
+      var cosnok = BigDecimal(.0)
+      var sinnok = BigDecimal(.0)
+      var cosik = BigDecimal(.0)
+      var sinik = BigDecimal(.0)
+      var rdotk = BigDecimal(.0)
+      var xinck = BigDecimal(.0)
+      var xnodek = BigDecimal(.0)
+      var uk = BigDecimal(.0)
+      var rk = BigDecimal(.0)
+      var cos2u = BigDecimal(.0)
+      var sin2u = BigDecimal(.0)
+      var u = BigDecimal(.0)
+      var sinu = BigDecimal(.0)
+      var cosu = BigDecimal(.0)
+      var betal = BigDecimal(.0)
+      var rfdot = BigDecimal(.0)
+      var rdot = BigDecimal(.0)
+      var r = BigDecimal(.0)
+      var pl = BigDecimal(.0)
+      var elsq = BigDecimal(.0)
+      var esine = BigDecimal(.0)
+      var ecose = BigDecimal(.0)
+      var epw = BigDecimal(.0)
+      var cosepw = BigDecimal(.0)
+      var x1m5th = BigDecimal(.0)
+      var xhdot1 = BigDecimal(.0)
+      var tfour = BigDecimal(.0)
+      var sinepw = BigDecimal(.0)
+      var capu = BigDecimal(.0)
+      var ayn = BigDecimal(.0)
+      var xlt = BigDecimal(.0)
+      var aynl = BigDecimal(.0)
+      var xll = BigDecimal(.0)
+      var axn = BigDecimal(.0)
+      var xn = BigDecimal(.0)
+      var beta = BigDecimal(.0)
+      var xl = BigDecimal(.0)
+      var e = BigDecimal(.0)
+      var a = BigDecimal(.0)
+      var tcube = BigDecimal(.0)
+      var delm = BigDecimal(.0)
+      var delomg = BigDecimal(.0)
+      var templ = BigDecimal(.0)
+      var tempe = BigDecimal(.0)
+      var tempa = BigDecimal(.0)
+      var xnode = BigDecimal(.0)
+      var tsq = BigDecimal(.0)
+      var xmp = BigDecimal(.0)
+      var omega = BigDecimal(.0)
+      var xnoddf = BigDecimal(.0)
+      var omgadf = BigDecimal(.0)
+      var xmdf = BigDecimal(.0)
+      var a1 = BigDecimal(.0)
+      var a3ovk2 = BigDecimal(.0)
+      var ao = BigDecimal(.0)
+      var betao = BigDecimal(.0)
+      var betao2 = BigDecimal(.0)
+      var c1sq = BigDecimal(.0)
+      var c2 = BigDecimal(.0)
+      var c3 = BigDecimal(.0)
+      var coef = BigDecimal(.0)
+      var coef1 = BigDecimal(.0)
+      var del1 = BigDecimal(.0)
+      var delo = BigDecimal(.0)
+      var eeta = BigDecimal(.0)
+      var eosq = BigDecimal(.0)
+      var etasq = BigDecimal(.0)
+      var perigee = BigDecimal(.0)
+      var pinvsq = BigDecimal(.0)
+      var psisq = BigDecimal(.0)
+      var qoms24 = BigDecimal(.0)
+      var s4 = BigDecimal(.0)
+      var temp = BigDecimal(.0)
+      var temp1 = BigDecimal(.0)
+      var temp2 = BigDecimal(.0)
+      var temp3 = BigDecimal(.0)
+      var temp4 = BigDecimal(.0)
+      var temp5 = BigDecimal(.0)
+      var temp6 = BigDecimal(.0)
+      var theta2 = BigDecimal(.0)
+      var theta4 = BigDecimal(.0)
+      var tsi = BigDecimal(.0)
       var i = 0
-      /* Initialization */ if (isFlagClear(SGP4_INITIALIZED_FLAG)) {
+      /* Initialization */
+      if (isFlagClear(SGP4_INITIALIZED_FLAG)) {
         SetFlag(SGP4_INITIALIZED_FLAG)
-        /* Recover original mean motion (xnodp) and   *//* semimajor axis (aodp) from input elements. */ a1 = Math.pow(xke / tle.xno, tothrd)
-        cosio = Math.cos(tle.xincl)
+        /* Recover original mean motion (xnodp) and   *//* semimajor axis (aodp) from input elements. */
+        a1 = pow(xke / tle.xno, tothrd)
+        cosio = cos(tle.xincl)
         theta2 = cosio * cosio
         x3thm1 = 3 * theta2 - 1.0
         eosq = tle.eo * tle.eo
         betao2 = 1.0 - eosq
-        betao = Math.sqrt(betao2)
+        betao = sqrt(betao2)
         del1 = 1.5 * ck2 * x3thm1 / (a1 * a1 * betao * betao2)
         ao = a1 * (1.0 - del1 * (0.5 * tothrd + del1 * (1.0 + 134.0 / 81.0 * del1)))
         delo = 1.5 * ck2 * x3thm1 / (ao * ao * betao * betao2)
         xnodp = tle.xno / (1.0 + delo)
         aodp = ao / (1.0 - delo)
-        /* For perigee less than 220 kilometers, the "simple"     *//* flag is set and the equations are truncated to linear  *//* variation in sqrt a and quadratic variation in mean    *//* anomaly.  Also, the c3 term, the delta omega term, and *//* the delta m term are dropped.                          */ if ((aodp * (1 - tle.eo) / ae) < (220 / xkmper + ae)) SetFlag(SIMPLE_FLAG)
+        /* For perigee less than 220 kilometers, the "simple"     *//* flag is set and the equations are truncated to linear  *//* variation in sqrt a and quadratic variation in mean    *//* anomaly.  Also, the c3 term, the delta omega term, and *//* the delta m term are dropped.                          */
+        if ((aodp * (1 - tle.eo) / ae) < (220 / xkmper + ae)) SetFlag(SIMPLE_FLAG)
         else ClearFlag(SIMPLE_FLAG)
         /* For perigees below 156 km, the      *//* values of s and qoms2t are altered. */ s4 = s
         qoms24 = qoms2t
@@ -796,7 +865,7 @@ class Predict {
         if (perigee < 156.0) {
           if (perigee <= 98.0) s4 = 20
           else s4 = perigee - 78.0
-          qoms24 = Math.pow((120 - s4) * ae / xkmper, 4)
+          qoms24 = pow((120 - s4) * ae / xkmper, 4)
           s4 = s4 / xkmper + ae
         }
         pinvsq = 1 / (aodp * aodp * betao2 * betao2)
@@ -804,16 +873,16 @@ class Predict {
         eta = aodp * tle.eo * tsi
         etasq = eta * eta
         eeta = tle.eo * eta
-        psisq = Math.abs(1 - etasq)
-        coef = qoms24 * Math.pow(tsi, 4)
-        coef1 = coef / Math.pow(psisq, 3.5)
+        psisq = abs(1 - etasq)
+        coef = qoms24 * pow(tsi, 4)
+        coef1 = coef / pow(psisq, 3.5)
         c2 = coef1 * xnodp * (aodp * (1 + 1.5 * etasq + eeta * (4 + etasq)) + 0.75 * ck2 * tsi / psisq * x3thm1 * (8 + 3 * etasq * (8 + etasq)))
         c1 = tle.bstar * c2
-        sinio = Math.sin(tle.xincl)
-        a3ovk2 = -xj3 / ck2 * Math.pow(ae, 3)
+        sinio = sin(tle.xincl)
+        a3ovk2 = -xj3 / ck2 * pow(ae, 3)
         c3 = coef * tsi * a3ovk2 * xnodp * ae * sinio / tle.eo
         x1mth2 = 1 - theta2
-        c4 = 2 * xnodp * coef1 * aodp * betao2 * (eta * (2 + 0.5 * etasq) + tle.eo * (0.5 + 2 * etasq) - 2 * ck2 * tsi / (aodp * psisq) * (-3 * x3thm1 * (1 - 2 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * x1mth2 * (2 * etasq - eeta * (1 + etasq)) * Math.cos(2 * tle.omegao)))
+        c4 = 2 * xnodp * coef1 * aodp * betao2 * (eta * (2 + 0.5 * etasq) + tle.eo * (0.5 + 2 * etasq) - 2 * ck2 * tsi / (aodp * psisq) * (-3 * x3thm1 * (1 - 2 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * x1mth2 * (2 * etasq - eeta * (1 + etasq)) * cos(2 * tle.omegao)))
         c5 = 2 * coef1 * aodp * betao2 * (1 + 2.75 * (etasq + eeta) + eeta * etasq)
         theta4 = theta2 * theta2
         temp1 = 3 * ck2 * pinvsq * xnodp
@@ -824,14 +893,14 @@ class Predict {
         omgdot = -0.5 * temp1 * x1m5th + 0.0625 * temp2 * (7 - 114 * theta2 + 395 * theta4) + temp3 * (3 - 36 * theta2 + 49 * theta4)
         xhdot1 = -temp1 * cosio
         xnodot = xhdot1 + (0.5 * temp2 * (4 - 19 * theta2) + 2 * temp3 * (3 - 7 * theta2)) * cosio
-        omgcof = tle.bstar * c3 * Math.cos(tle.omegao)
+        omgcof = tle.bstar * c3 * cos(tle.omegao)
         xmcof = -tothrd * coef * tle.bstar * ae / eeta
         xnodcf = 3.5 * betao2 * xhdot1 * c1
         t2cof = 1.5 * c1
         xlcof = 0.125 * a3ovk2 * sinio * (3 + 5 * cosio) / (1 + cosio)
         aycof = 0.25 * a3ovk2 * sinio
-        delmo = Math.pow(1 + eta * Math.cos(tle.xmo), 3)
-        sinmo = Math.sin(tle.xmo)
+        delmo = pow(1 + eta * cos(tle.xmo), 3)
+        sinmo = sin(tle.xmo)
         x7thm1 = 7 * theta2 - 1
         if (isFlagClear(SIMPLE_FLAG)) {
           c1sq = c1 * c1
@@ -856,40 +925,41 @@ class Predict {
       templ = t2cof * tsq
       if (isFlagClear(SIMPLE_FLAG)) {
         delomg = omgcof * tsince
-        delm = xmcof * (Math.pow(1 + eta * Math.cos(xmdf), 3) - delmo)
+        delm = xmcof * (pow(1 + eta * cos(xmdf), 3) - delmo)
         temp = delomg + delm
         xmp = xmdf + temp
         omega = omgadf - temp
         tcube = tsq * tsince
         tfour = tsince * tcube
         tempa = tempa - d2 * tsq - d3 * tcube - d4 * tfour
-        tempe = tempe + tle.bstar * c5 * (Math.sin(xmp) - sinmo)
+        tempe = tempe + tle.bstar * c5 * (sin(xmp) - sinmo)
         templ = templ + t3cof * tcube + tfour * (t4cof + tsince * t5cof)
       }
-      a = aodp * Math.pow(tempa, 2)
+      a = aodp * pow(tempa, 2)
       e = tle.eo - tempe
       xl = xmp + omega + xnode + xnodp * templ
-      beta = Math.sqrt(1 - e * e)
-      xn = xke / Math.pow(a, 1.5)
-      /* Long period periodics */ axn = e * Math.cos(omega)
+      beta = sqrt(1 - e * e)
+      xn = xke / pow(a, 1.5)
+      /* Long period periodics */
+      axn = e * cos(omega)
       temp = 1 / (a * beta * beta)
       xll = temp * xlcof * axn
       aynl = temp * aycof
       xlt = xl + xll
-      ayn = e * Math.sin(omega) + aynl
+      ayn = e * sin(omega) + aynl
       /* Solve Kepler's Equation */ capu = FMod2p(xlt - xnode)
       temp2 = capu
       i = 0
       var needBreak = false
       do {
-        sinepw = Math.sin(temp2)
-        cosepw = Math.cos(temp2)
+        sinepw = sin(temp2)
+        cosepw = cos(temp2)
         temp3 = axn * sinepw
         temp4 = ayn * cosepw
         temp5 = axn * cosepw
         temp6 = ayn * sinepw
         epw = (capu - temp4 + temp3 - temp2) / (1 - temp5 - temp6) + temp2
-        if (Math.abs(epw - temp2) <= e6a) needBreak = true //todo: break is not supported
+        if (abs(epw - temp2) <= e6a) needBreak = true //todo: break is not supported
         if (!needBreak) temp2 = epw
       } while ( {
         {
@@ -904,10 +974,10 @@ class Predict {
       pl = a * temp
       r = a * (1 - ecose)
       temp1 = 1 / r
-      rdot = xke * Math.sqrt(a) * esine * temp1
-      rfdot = xke * Math.sqrt(pl) * temp1
+      rdot = xke * sqrt(a) * esine * temp1
+      rfdot = xke * sqrt(pl) * temp1
       temp2 = a * temp1
-      betal = Math.sqrt(temp)
+      betal = sqrt(temp)
       temp3 = 1 / (1 + betal)
       cosu = temp2 * (cosepw - axn + ayn * esine * temp3)
       sinu = temp2 * (sinepw - ayn - axn * esine * temp3)
@@ -923,12 +993,12 @@ class Predict {
       xinck = tle.xincl + 1.5 * temp2 * cosio * sinio * cos2u
       rdotk = rdot - xn * temp1 * x1mth2 * sin2u
       rfdotk = rfdot + xn * temp1 * (x1mth2 * cos2u + 1.5 * x3thm1)
-      /* Orientation vectors */ sinuk = Math.sin(uk)
-      cosuk = Math.cos(uk)
-      sinik = Math.sin(xinck)
-      cosik = Math.cos(xinck)
-      sinnok = Math.sin(xnodek)
-      cosnok = Math.cos(xnodek)
+      /* Orientation vectors */ sinuk = sin(uk)
+      cosuk = cos(uk)
+      sinik = sin(xinck)
+      cosik = cos(xinck)
+      sinnok = sin(xnodek)
+      cosnok = cos(xnodek)
       xmx = -sinnok * cosik
       xmy = cosnok * cosik
       ux = xmx * sinuk + cosnok * cosuk
@@ -956,210 +1026,211 @@ class Predict {
   }
 
   class DeepClass {
-    var thgr = .0
-    var xnq = .0
-    var xqncl = .0
-    var omegaq = .0
-    var zmol = .0
-    var zmos = .0
-    var savtsn = .0
-    var ee2 = .0
-    var e3 = .0
-    var xi2 = .0
-    var xl2 = .0
-    var xl3 = .0
-    var xl4 = .0
-    var xgh2 = .0
-    var xgh3 = .0
-    var xgh4 = .0
-    var xh2 = .0
-    var xh3 = .0
-    var sse = .0
-    var ssi = .0
-    var ssg = .0
-    var xi3 = .0
-    var se2 = .0
-    var si2 = .0
-    var sl2 = .0
-    var sgh2 = .0
-    var sh2 = .0
-    var se3 = .0
-    var si3 = .0
-    var sl3 = .0
-    var sgh3 = .0
-    var sh3 = .0
-    var sl4 = .0
-    var sgh4 = .0
-    var ssl = .0
-    var ssh = .0
-    var d3210 = .0
-    var d3222 = .0
-    var d4410 = .0
-    var d4422 = .0
-    var d5220 = .0
-    var d5232 = .0
-    var d5421 = .0
-    var d5433 = .0
-    var del1 = .0
-    var del2 = .0
-    var del3 = .0
-    var fasx2 = .0
-    var fasx4 = .0
-    var fasx6 = .0
-    var xlamo = .0
-    var xfact = .0
-    var xni = .0
-    var atime = .0
-    var stepp = .0
-    var stepn = .0
-    var step2 = .0
-    var preep = .0
-    var pl = .0
-    var sghs = .0
-    var xli = .0
-    var d2201 = .0
-    var d2211 = .0
-    var sghl = .0
-    var sh1 = .0
-    var pinc = .0
-    var pe = .0
-    var shs = .0
-    var zsingl = .0
-    var zcosgl = .0
-    var zsinhl = .0
-    var zcoshl = .0
-    var zsinil = .0
-    var zcosil = .0
+    var thgr = BigDecimal(.0)
+    var xnq = BigDecimal(.0)
+    var xqncl = BigDecimal(.0)
+    var omegaq = BigDecimal(.0)
+    var zmol = BigDecimal(.0)
+    var zmos = BigDecimal(.0)
+    var savtsn = BigDecimal(.0)
+    var ee2 = BigDecimal(.0)
+    var e3 = BigDecimal(.0)
+    var xi2 = BigDecimal(.0)
+    var xl2 = BigDecimal(.0)
+    var xl3 = BigDecimal(.0)
+    var xl4 = BigDecimal(.0)
+    var xgh2 = BigDecimal(.0)
+    var xgh3 = BigDecimal(.0)
+    var xgh4 = BigDecimal(.0)
+    var xh2 = BigDecimal(.0)
+    var xh3 = BigDecimal(.0)
+    var sse = BigDecimal(.0)
+    var ssi = BigDecimal(.0)
+    var ssg = BigDecimal(.0)
+    var xi3 = BigDecimal(.0)
+    var se2 = BigDecimal(.0)
+    var si2 = BigDecimal(.0)
+    var sl2 = BigDecimal(.0)
+    var sgh2 = BigDecimal(.0)
+    var sh2 = BigDecimal(.0)
+    var se3 = BigDecimal(.0)
+    var si3 = BigDecimal(.0)
+    var sl3 = BigDecimal(.0)
+    var sgh3 = BigDecimal(.0)
+    var sh3 = BigDecimal(.0)
+    var sl4 = BigDecimal(.0)
+    var sgh4 = BigDecimal(.0)
+    var ssl = BigDecimal(.0)
+    var ssh = BigDecimal(.0)
+    var d3210 = BigDecimal(.0)
+    var d3222 = BigDecimal(.0)
+    var d4410 = BigDecimal(.0)
+    var d4422 = BigDecimal(.0)
+    var d5220 = BigDecimal(.0)
+    var d5232 = BigDecimal(.0)
+    var d5421 = BigDecimal(.0)
+    var d5433 = BigDecimal(.0)
+    var del1 = BigDecimal(.0)
+    var del2 = BigDecimal(.0)
+    var del3 = BigDecimal(.0)
+    var fasx2 = BigDecimal(.0)
+    var fasx4 = BigDecimal(.0)
+    var fasx6 = BigDecimal(.0)
+    var xlamo = BigDecimal(.0)
+    var xfact = BigDecimal(.0)
+    var xni = BigDecimal(.0)
+    var atime = BigDecimal(.0)
+    var stepp = BigDecimal(.0)
+    var stepn = BigDecimal(.0)
+    var step2 = BigDecimal(.0)
+    var preep = BigDecimal(.0)
+    var pl = BigDecimal(.0)
+    var sghs = BigDecimal(.0)
+    var xli = BigDecimal(.0)
+    var d2201 = BigDecimal(.0)
+    var d2211 = BigDecimal(.0)
+    var sghl = BigDecimal(.0)
+    var sh1 = BigDecimal(.0)
+    var pinc = BigDecimal(.0)
+    var pe = BigDecimal(.0)
+    var shs = BigDecimal(.0)
+    var zsingl = BigDecimal(.0)
+    var zcosgl = BigDecimal(.0)
+    var zsinhl = BigDecimal(.0)
+    var zcoshl = BigDecimal(.0)
+    var zsinil = BigDecimal(.0)
+    var zcosil = BigDecimal(.0)
 
     def Deep(ientry: Int, tle: tle_t, deep_arg: deep_arg_t): Unit = {
-      /* This function is used by SDP4 to add lunar and solar *//* perturbation effects to deep-space orbit objects.    */ var a1 = .0
-      var a2 = .0
-      var a3 = .0
-      var a4 = .0
-      var a5 = .0
-      var a6 = .0
-      var a7 = .0
-      var a8 = .0
-      var a9 = .0
-      var a10 = .0
-      var ainv2 = .0
-      var alfdp = .0
-      var aqnv = .0
-      var sgh = .0
-      var sini2 = .0
-      var sinis = .0
-      var sinok = .0
-      var sh = .0
-      var si = .0
-      var sil = .0
-      var day = .0
-      var betdp = .0
-      var dalf = .0
-      var bfact = .0
-      var c = .0
-      var cc = .0
-      var cosis = .0
-      var cosok = .0
-      var cosq = .0
-      var ctem = .0
-      var f322 = .0
-      var zx = .0
-      var zy = .0
-      var dbet = .0
-      var dls = .0
-      var eoc = .0
-      var eq = .0
-      var f2 = .0
-      var f220 = .0
-      var f221 = .0
-      var f3 = .0
-      var f311 = .0
-      var f321 = .0
-      var xnoh = .0
-      var f330 = .0
-      var f441 = .0
-      var f442 = .0
-      var f522 = .0
-      var f523 = .0
-      var f542 = .0
-      var f543 = .0
-      var g200 = .0
-      var g201 = .0
-      var g211 = .0
-      var pgh = .0
-      var ph = .0
-      var s1 = .0
-      var s2 = .0
-      var s3 = .0
-      var s4 = .0
-      var s5 = .0
-      var s6 = .0
-      var s7 = .0
-      var se = .0
-      var sel = .0
-      var ses = .0
-      var xls = .0
-      var g300 = .0
-      var g310 = .0
-      var g322 = .0
-      var g410 = .0
-      var g422 = .0
-      var g520 = .0
-      var g521 = .0
-      var g532 = .0
-      var g533 = .0
-      var gam = .0
-      var sinq = .0
-      var sinzf = .0
-      var sis = .0
-      var sl = .0
-      var sll = .0
-      var sls = .0
-      var stem = .0
-      var temp = .0
-      var temp1 = .0
-      var x1 = .0
-      var x2 = .0
-      var x2li = .0
-      var x2omi = .0
-      var x3 = .0
-      var x4 = .0
-      var x5 = .0
-      var x6 = .0
-      var x7 = .0
-      var x8 = .0
-      var xl = .0
-      var xldot = .0
-      var xmao = .0
-      var xnddt = .0
-      var xndot = .0
-      var xno2 = .0
-      var xnodce = .0
-      var xnoi = .0
-      var xomi = .0
-      var xpidot = .0
-      var z1 = .0
-      var z11 = .0
-      var z12 = .0
-      var z13 = .0
-      var z2 = .0
-      var z21 = .0
-      var z22 = .0
-      var z23 = .0
-      var z3 = .0
-      var z31 = .0
-      var z32 = .0
-      var z33 = .0
-      var ze = .0
-      var zf = .0
-      var zm = .0
-      var zn = .0
-      var zsing = .0
-      var zsinh = .0
-      var zsini = .0
-      var zcosg = .0
-      var zcosh = .0
-      var zcosi = .0
+      /* This function is used by SDP4 to add lunar and solar *//* perturbation effects to deep-space orbit objects.    */
+      var a1 = BigDecimal(.0)
+      var a2 = BigDecimal(.0)
+      var a3 = BigDecimal(.0)
+      var a4 = BigDecimal(.0)
+      var a5 = BigDecimal(.0)
+      var a6 = BigDecimal(.0)
+      var a7 = BigDecimal(.0)
+      var a8 = BigDecimal(.0)
+      var a9 = BigDecimal(.0)
+      var a10 = BigDecimal(.0)
+      var ainv2 = BigDecimal(.0)
+      var alfdp = BigDecimal(.0)
+      var aqnv = BigDecimal(.0)
+      var sgh = BigDecimal(.0)
+      var sini2 = BigDecimal(.0)
+      var sinis = BigDecimal(.0)
+      var sinok = BigDecimal(.0)
+      var sh = BigDecimal(.0)
+      var si = BigDecimal(.0)
+      var sil = BigDecimal(.0)
+      var day = BigDecimal(.0)
+      var betdp = BigDecimal(.0)
+      var dalf = BigDecimal(.0)
+      var bfact = BigDecimal(.0)
+      var c = BigDecimal(.0)
+      var cc = BigDecimal(.0)
+      var cosis = BigDecimal(.0)
+      var cosok = BigDecimal(.0)
+      var cosq = BigDecimal(.0)
+      var ctem = BigDecimal(.0)
+      var f322 = BigDecimal(.0)
+      var zx = BigDecimal(.0)
+      var zy = BigDecimal(.0)
+      var dbet = BigDecimal(.0)
+      var dls = BigDecimal(.0)
+      var eoc = BigDecimal(.0)
+      var eq = BigDecimal(.0)
+      var f2 = BigDecimal(.0)
+      var f220 = BigDecimal(.0)
+      var f221 = BigDecimal(.0)
+      var f3 = BigDecimal(.0)
+      var f311 = BigDecimal(.0)
+      var f321 = BigDecimal(.0)
+      var xnoh = BigDecimal(.0)
+      var f330 = BigDecimal(.0)
+      var f441 = BigDecimal(.0)
+      var f442 = BigDecimal(.0)
+      var f522 = BigDecimal(.0)
+      var f523 = BigDecimal(.0)
+      var f542 = BigDecimal(.0)
+      var f543 = BigDecimal(.0)
+      var g200 = BigDecimal(.0)
+      var g201 = BigDecimal(.0)
+      var g211 = BigDecimal(.0)
+      var pgh = BigDecimal(.0)
+      var ph = BigDecimal(.0)
+      var s1 = BigDecimal(.0)
+      var s2 = BigDecimal(.0)
+      var s3 = BigDecimal(.0)
+      var s4 = BigDecimal(.0)
+      var s5 = BigDecimal(.0)
+      var s6 = BigDecimal(.0)
+      var s7 = BigDecimal(.0)
+      var se = BigDecimal(.0)
+      var sel = BigDecimal(.0)
+      var ses = BigDecimal(.0)
+      var xls = BigDecimal(.0)
+      var g300 = BigDecimal(.0)
+      var g310 = BigDecimal(.0)
+      var g322 = BigDecimal(.0)
+      var g410 = BigDecimal(.0)
+      var g422 = BigDecimal(.0)
+      var g520 = BigDecimal(.0)
+      var g521 = BigDecimal(.0)
+      var g532 = BigDecimal(.0)
+      var g533 = BigDecimal(.0)
+      var gam = BigDecimal(.0)
+      var sinq = BigDecimal(.0)
+      var sinzf = BigDecimal(.0)
+      var sis = BigDecimal(.0)
+      var sl = BigDecimal(.0)
+      var sll = BigDecimal(.0)
+      var sls = BigDecimal(.0)
+      var stem = BigDecimal(.0)
+      var temp = BigDecimal(.0)
+      var temp1 = BigDecimal(.0)
+      var x1 = BigDecimal(.0)
+      var x2 = BigDecimal(.0)
+      var x2li = BigDecimal(.0)
+      var x2omi = BigDecimal(.0)
+      var x3 = BigDecimal(.0)
+      var x4 = BigDecimal(.0)
+      var x5 = BigDecimal(.0)
+      var x6 = BigDecimal(.0)
+      var x7 = BigDecimal(.0)
+      var x8 = BigDecimal(.0)
+      var xl = BigDecimal(.0)
+      var xldot = BigDecimal(.0)
+      var xmao = BigDecimal(.0)
+      var xnddt = BigDecimal(.0)
+      var xndot = BigDecimal(.0)
+      var xno2 = BigDecimal(.0)
+      var xnodce = BigDecimal(.0)
+      var xnoi = BigDecimal(.0)
+      var xomi = BigDecimal(.0)
+      var xpidot = BigDecimal(.0)
+      var z1 = BigDecimal(.0)
+      var z11 = BigDecimal(.0)
+      var z12 = BigDecimal(.0)
+      var z13 = BigDecimal(.0)
+      var z2 = BigDecimal(.0)
+      var z21 = BigDecimal(.0)
+      var z22 = BigDecimal(.0)
+      var z23 = BigDecimal(.0)
+      var z3 = BigDecimal(.0)
+      var z31 = BigDecimal(.0)
+      var z32 = BigDecimal(.0)
+      var z33 = BigDecimal(.0)
+      var ze = BigDecimal(.0)
+      var zf = BigDecimal(.0)
+      var zm = BigDecimal(.0)
+      var zn = BigDecimal(.0)
+      var zsing = BigDecimal(.0)
+      var zsinh = BigDecimal(.0)
+      var zsini = BigDecimal(.0)
+      var zcosg = BigDecimal(.0)
+      var zcosh = BigDecimal(.0)
+      var zcosi = BigDecimal(.0)
       var delt = 0
       var ft = 0
       if (ientry == dpinit) {
@@ -1170,19 +1241,19 @@ class Predict {
         xqncl = tle.xincl
         xmao = tle.xmo
         xpidot = deep_arg.omgdot + deep_arg.xnodot
-        sinq = Math.sin(tle.xnodeo)
-        cosq = Math.cos(tle.xnodeo)
+        sinq = sin(tle.xnodeo)
+        cosq = cos(tle.xnodeo)
         omegaq = tle.omegao
         /* Initialize lunar solar terms */ day = deep_arg.ds50 + 18261.5
         /* Days since 1900 Jan 0.5 */ if (day != preep) {
           preep = day
           xnodce = 4.5236020 - 9.2422029E-4 * day
-          stem = Math.sin(xnodce)
-          ctem = Math.cos(xnodce)
+          stem = sin(xnodce)
+          ctem = cos(xnodce)
           zcosil = 0.91375164 - 0.03568096 * ctem
-          zsinil = Math.sqrt(1 - zcosil * zcosil)
+          zsinil = sqrt(1 - zcosil * zcosil)
           zsinhl = 0.089683511 * stem / zsinil
-          zcoshl = Math.sqrt(1 - zsinhl * zsinhl)
+          zcoshl = sqrt(1 - zsinhl * zsinhl)
           c = 4.7199672 + 0.22997150 * day
           gam = 5.8351514 + 0.0019443680 * day
           zmol = FMod2p(c - gam)
@@ -1190,8 +1261,8 @@ class Predict {
           zy = zcoshl * ctem + 0.91744867 * zsinhl * stem
           zx = AcTan(zx, zy)
           zx = gam + zx - xnodce
-          zcosgl = Math.cos(zx)
-          zsingl = Math.sin(zx)
+          zcosgl = cos(zx)
+          zsingl = sin(zx)
           zmos = 6.2565837 + 0.017201977 * day
           zmos = FMod2p(zmos)
         }
@@ -1424,10 +1495,10 @@ class Predict {
             xni = xnq
             xli = xlamo
           }
-          else if (Math.abs(deep_arg.t) >= Math.abs(atime)) if (deep_arg.t > 0) delt = stepp.toInt
+          else if (abs(deep_arg.t) >= abs(atime)) if (deep_arg.t > 0) delt = stepp.toInt
           else delt = stepn.toInt
           do {
-            if (Math.abs(deep_arg.t - atime) >= stepp) {
+            if (abs(deep_arg.t - atime) >= stepp) {
               SetFlag(DO_LOOP_FLAG)
               ClearFlag(EPOCH_RESTART_FLAG)
             }
@@ -1435,21 +1506,21 @@ class Predict {
               ft = (deep_arg.t - atime).toInt
               ClearFlag(DO_LOOP_FLAG)
             }
-            if (Math.abs(deep_arg.t) < Math.abs(atime)) {
+            if (abs(deep_arg.t) < abs(atime)) {
               if (deep_arg.t >= 0) delt = stepn.toInt
               else delt = stepp.toInt
               SetFlag(DO_LOOP_FLAG | EPOCH_RESTART_FLAG)
             }
             /* Dot terms calculated */ if (isFlagSet(SYNCHRONOUS_FLAG)) {
-              xndot = del1 * Math.sin(xli - fasx2) + del2 * Math.sin(2 * (xli - fasx4)) + del3 * Math.sin(3 * (xli - fasx6))
-              xnddt = del1 * Math.cos(xli - fasx2) + 2 * del2 * Math.cos(2 * (xli - fasx4)) + 3 * del3 * Math.cos(3 * (xli - fasx6))
+              xndot = del1 * sin(xli - fasx2) + del2 * sin(2 * (xli - fasx4)) + del3 * sin(3 * (xli - fasx6))
+              xnddt = del1 * cos(xli - fasx2) + 2 * del2 * cos(2 * (xli - fasx4)) + 3 * del3 * cos(3 * (xli - fasx6))
             }
             else {
               xomi = omegaq + deep_arg.omgdot * atime
               x2omi = xomi + xomi
               x2li = xli + xli
-              xndot = d2201 * Math.sin(x2omi + xli - g22) + d2211 * Math.sin(xli - g22) + d3210 * Math.sin(xomi + xli - g32) + d3222 * Math.sin(-xomi + xli - g32) + d4410 * Math.sin(x2omi + x2li - g44) + d4422 * Math.sin(x2li - g44) + d5220 * Math.sin(xomi + xli - g52) + d5232 * Math.sin(-xomi + xli - g52) + d5421 * Math.sin(xomi + x2li - g54) + d5433 * Math.sin(-xomi + x2li - g54)
-              xnddt = d2201 * Math.cos(x2omi + xli - g22) + d2211 * Math.cos(xli - g22) + d3210 * Math.cos(xomi + xli - g32) + d3222 * Math.cos(-xomi + xli - g32) + d5220 * Math.cos(xomi + xli - g52) + d5232 * Math.cos(-xomi + xli - g52) + 2 * (d4410 * Math.cos(x2omi + x2li - g44) + d4422 * Math.cos(x2li - g44) + d5421 * Math.cos(xomi + x2li - g54) + d5433 * Math.cos(-xomi + x2li - g54))
+              xndot = d2201 * sin(x2omi + xli - g22) + d2211 * sin(xli - g22) + d3210 * sin(xomi + xli - g32) + d3222 * sin(-xomi + xli - g32) + d4410 * sin(x2omi + x2li - g44) + d4422 * sin(x2li - g44) + d5220 * sin(xomi + xli - g52) + d5232 * sin(-xomi + xli - g52) + d5421 * sin(xomi + x2li - g54) + d5433 * sin(-xomi + x2li - g54)
+              xnddt = d2201 * cos(x2omi + xli - g22) + d2211 * cos(xli - g22) + d3210 * cos(xomi + xli - g32) + d3222 * cos(-xomi + xli - g32) + d5220 * cos(xomi + xli - g52) + d5232 * cos(-xomi + xli - g52) + 2 * (d4410 * cos(x2omi + x2li - g44) + d4422 * cos(x2li - g44) + d5421 * cos(xomi + x2li - g54) + d5433 * cos(-xomi + x2li - g54))
             }
             xldot = xni + xfact
             xnddt = xnddt * xldot
@@ -1471,25 +1542,25 @@ class Predict {
         else deep_arg.xll = xl - deep_arg.omgadf + temp
       }
       if (ientry == dpper) {
-        /* Entrance for lunar-solar periodics */ sinis = Math.sin(deep_arg.xinc)
-        cosis = Math.cos(deep_arg.xinc)
-        if (Math.abs(savtsn - deep_arg.t) >= 30) {
+        /* Entrance for lunar-solar periodics */ sinis = sin(deep_arg.xinc)
+        cosis = cos(deep_arg.xinc)
+        if (abs(savtsn - deep_arg.t) >= 30) {
           savtsn = deep_arg.t
           zm = zmos + zns * deep_arg.t
-          zf = zm + 2 * zes * Math.sin(zm)
-          sinzf = Math.sin(zf)
+          zf = zm + 2 * zes * sin(zm)
+          sinzf = sin(zf)
           f2 = 0.5 * sinzf * sinzf - 0.25
-          f3 = -0.5 * sinzf * Math.cos(zf)
+          f3 = -0.5 * sinzf * cos(zf)
           ses = se2 * f2 + se3 * f3
           sis = si2 * f2 + si3 * f3
           sls = sl2 * f2 + sl3 * f3 + sl4 * sinzf
           sghs = sgh2 * f2 + sgh3 * f3 + sgh4 * sinzf
           shs = sh2 * f2 + sh3 * f3
           zm = zmol + znl * deep_arg.t
-          zf = zm + 2 * zel * Math.sin(zm)
-          sinzf = Math.sin(zf)
+          zf = zm + 2 * zel * sin(zm)
+          sinzf = sin(zf)
           f2 = 0.5 * sinzf * sinzf - 0.25
-          f3 = -0.5 * sinzf * Math.cos(zf)
+          f3 = -0.5 * sinzf * cos(zf)
           sel = ee2 * f2 + e3 * f3
           sil = xi2 * f2 + xi3 * f3
           sll = xl2 * f2 + xl3 * f3 + xl4 * sinzf
@@ -1511,8 +1582,8 @@ class Predict {
           deep_arg.xll = deep_arg.xll + pl
         }
         else {
-          /* Apply periodics with Lyddane modification */ sinok = Math.sin(deep_arg.xnode)
-          cosok = Math.cos(deep_arg.xnode)
+          /* Apply periodics with Lyddane modification */ sinok = sin(deep_arg.xnode)
+          cosok = cos(deep_arg.xnode)
           alfdp = sinis * sinok
           betdp = sinis * cosok
           dalf = ph * cosok + pinc * cosis * sinok
@@ -1525,10 +1596,11 @@ class Predict {
           xls = xls + dls
           xnoh = deep_arg.xnode
           deep_arg.xnode = AcTan(alfdp, betdp)
-          /* This is a patch to Lyddane modification *//* suggested by Rob Matson. */ if (Math.abs(xnoh - deep_arg.xnode) > Math.PI) if (deep_arg.xnode < xnoh) deep_arg.xnode += twopi
+          /* This is a patch to Lyddane modification *//* suggested by Rob Matson. */
+          if (abs(xnoh - deep_arg.xnode) > Math.PI) if (deep_arg.xnode < xnoh) deep_arg.xnode += twopi
           else deep_arg.xnode -= twopi
           deep_arg.xll = deep_arg.xll + pl
-          deep_arg.omgadf = xls - deep_arg.xll - Math.cos(deep_arg.xinc) * deep_arg.xnode
+          deep_arg.omgadf = xls - deep_arg.xll - cos(deep_arg.xinc) * deep_arg.xnode
         }
       }
     }
@@ -1536,118 +1608,120 @@ class Predict {
 
   val sdp4Object = new SDP4Class
 
-  def SDP4(tsince: Double, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
+  def SDP4(tsince: BigDecimal, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
     sdp4Object.SDP4(tsince, tle, pos, vel)
   }
 
   class SDP4Class {
-    /* This function is used to calculate the position and velocity *//* of deep-space (period > 225 minutes) satellites. tsince is   *//* time since epoch in minutes, tle is a pointer to a tle_t     *//* structure with Keplerian orbital elements and pos and vel    *//* are vector_t structures returning ECI satellite position and *//* velocity. Use Convert_Sat_State() to convert to km and km/s. */ var x3thm1 = .0
-    var c1 = .0
-    var x1mth2 = .0
-    var c4 = .0
-    var xnodcf = .0
-    var t2cof = .0
-    var xlcof = .0
-    var aycof = .0
-    var x7thm1 = .0
+    /* This function is used to calculate the position and velocity *//* of deep-space (period > 225 minutes) satellites. tsince is   *//* time since epoch in minutes, tle is a pointer to a tle_t     *//* structure with Keplerian orbital elements and pos and vel    *//* are vector_t structures returning ECI satellite position and *//* velocity. Use Convert_Sat_State() to convert to km and km/s. */
+    var x3thm1 = BigDecimal(.0)
+    var c1 = BigDecimal(.0)
+    var x1mth2 = BigDecimal(.0)
+    var c4 = BigDecimal(.0)
+    var xnodcf = BigDecimal(.0)
+    var t2cof = BigDecimal(.0)
+    var xlcof = BigDecimal(.0)
+    var aycof = BigDecimal(.0)
+    var x7thm1 = BigDecimal(.0)
     val deep_arg: deep_arg_t = null
 
-    def SDP4(tsince: Double, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
+    def SDP4(tsince: BigDecimal, tle: tle_t, pos: vector_t, vel: vector_t): Unit = {
       var i = 0
-      var a = .0
-      var axn = .0
-      var ayn = .0
-      var aynl = .0
-      var beta = .0
-      var betal = .0
-      var capu = .0
-      var cos2u = .0
-      var cosepw = .0
-      var cosik = .0
-      var cosnok = .0
-      var cosu = .0
-      var cosuk = .0
-      var ecose = .0
-      var elsq = .0
-      var epw = .0
-      var esine = .0
-      var pl = .0
-      var theta4 = .0
-      var rdot = .0
-      var rdotk = .0
-      var rfdot = .0
-      var rfdotk = .0
-      var rk = .0
-      var sin2u = .0
-      var sinepw = .0
-      var sinik = .0
-      var sinnok = .0
-      var sinu = .0
-      var sinuk = .0
-      var tempe = .0
-      var templ = .0
-      var tsq = .0
-      var u = .0
-      var uk = .0
-      var ux = .0
-      var uy = .0
-      var uz = .0
-      var vx = .0
-      var vy = .0
-      var vz = .0
-      var xinck = .0
-      var xl = .0
-      var xlt = .0
-      var xmam = .0
-      var xmdf = .0
-      var xmx = .0
-      var xmy = .0
-      var xnoddf = .0
-      var xnodek = .0
-      var xll = .0
-      var a1 = .0
-      var a3ovk2 = .0
-      var ao = .0
-      var c2 = .0
-      var coef = .0
-      var coef1 = .0
-      var x1m5th = .0
-      var xhdot1 = .0
-      var del1 = .0
-      var r = .0
-      var delo = .0
-      var eeta = .0
-      var eta = .0
-      var etasq = .0
-      var perigee = .0
-      var psisq = .0
-      var tsi = .0
-      var qoms24 = .0
-      var s4 = .0
-      var pinvsq = .0
-      var temp = .0
-      var tempa = .0
-      var temp1 = .0
-      var temp2 = .0
-      var temp3 = .0
-      var temp4 = .0
-      var temp5 = .0
-      var temp6 = .0
-      val bx = .0
-      val by = .0
-      val bz = .0
-      val cx = .0
-      val cy = .0
-      val cz = .0
+      var a = BigDecimal(.0)
+      var axn = BigDecimal(.0)
+      var ayn = BigDecimal(.0)
+      var aynl = BigDecimal(.0)
+      var beta = BigDecimal(.0)
+      var betal = BigDecimal(.0)
+      var capu = BigDecimal(.0)
+      var cos2u = BigDecimal(.0)
+      var cosepw = BigDecimal(.0)
+      var cosik = BigDecimal(.0)
+      var cosnok = BigDecimal(.0)
+      var cosu = BigDecimal(.0)
+      var cosuk = BigDecimal(.0)
+      var ecose = BigDecimal(.0)
+      var elsq = BigDecimal(.0)
+      var epw = BigDecimal(.0)
+      var esine = BigDecimal(.0)
+      var pl = BigDecimal(.0)
+      var theta4 = BigDecimal(.0)
+      var rdot = BigDecimal(.0)
+      var rdotk = BigDecimal(.0)
+      var rfdot = BigDecimal(.0)
+      var rfdotk = BigDecimal(.0)
+      var rk = BigDecimal(.0)
+      var sin2u = BigDecimal(.0)
+      var sinepw = BigDecimal(.0)
+      var sinik = BigDecimal(.0)
+      var sinnok = BigDecimal(.0)
+      var sinu = BigDecimal(.0)
+      var sinuk = BigDecimal(.0)
+      var tempe = BigDecimal(.0)
+      var templ = BigDecimal(.0)
+      var tsq = BigDecimal(.0)
+      var u = BigDecimal(.0)
+      var uk = BigDecimal(.0)
+      var ux = BigDecimal(.0)
+      var uy = BigDecimal(.0)
+      var uz = BigDecimal(.0)
+      var vx = BigDecimal(.0)
+      var vy = BigDecimal(.0)
+      var vz = BigDecimal(.0)
+      var xinck = BigDecimal(.0)
+      var xl = BigDecimal(.0)
+      var xlt = BigDecimal(.0)
+      var xmam = BigDecimal(.0)
+      var xmdf = BigDecimal(.0)
+      var xmx = BigDecimal(.0)
+      var xmy = BigDecimal(.0)
+      var xnoddf = BigDecimal(.0)
+      var xnodek = BigDecimal(.0)
+      var xll = BigDecimal(.0)
+      var a1 = BigDecimal(.0)
+      var a3ovk2 = BigDecimal(.0)
+      var ao = BigDecimal(.0)
+      var c2 = BigDecimal(.0)
+      var coef = BigDecimal(.0)
+      var coef1 = BigDecimal(.0)
+      var x1m5th = BigDecimal(.0)
+      var xhdot1 = BigDecimal(.0)
+      var del1 = BigDecimal(.0)
+      var r = BigDecimal(.0)
+      var delo = BigDecimal(.0)
+      var eeta = BigDecimal(.0)
+      var eta = BigDecimal(.0)
+      var etasq = BigDecimal(.0)
+      var perigee = BigDecimal(.0)
+      var psisq = BigDecimal(.0)
+      var tsi = BigDecimal(.0)
+      var qoms24 = BigDecimal(.0)
+      var s4 = BigDecimal(.0)
+      var pinvsq = BigDecimal(.0)
+      var temp = BigDecimal(.0)
+      var tempa = BigDecimal(.0)
+      var temp1 = BigDecimal(.0)
+      var temp2 = BigDecimal(.0)
+      var temp3 = BigDecimal(.0)
+      var temp4 = BigDecimal(.0)
+      var temp5 = BigDecimal(.0)
+      var temp6 = BigDecimal(.0)
+      val bx = BigDecimal(.0)
+      val by = BigDecimal(.0)
+      val bz = BigDecimal(.0)
+      val cx = BigDecimal(.0)
+      val cy = BigDecimal(.0)
+      val cz = BigDecimal(.0)
       /* Initialization */ if (isFlagClear(SDP4_INITIALIZED_FLAG)) {
         SetFlag(SDP4_INITIALIZED_FLAG)
-        /* Recover original mean motion (xnodp) and   *//* semimajor axis (aodp) from input elements. */ a1 = Math.pow(xke / tle.xno, tothrd)
-        deep_arg.cosio = Math.cos(tle.xincl)
+        /* Recover original mean motion (xnodp) and   *//* semimajor axis (aodp) from input elements. */
+        a1 = pow(xke / tle.xno, tothrd)
+        deep_arg.cosio = cos(tle.xincl)
         deep_arg.theta2 = deep_arg.cosio * deep_arg.cosio
         x3thm1 = 3 * deep_arg.theta2 - 1
         deep_arg.eosq = tle.eo * tle.eo
         deep_arg.betao2 = 1 - deep_arg.eosq
-        deep_arg.betao = Math.sqrt(deep_arg.betao2)
+        deep_arg.betao = sqrt(deep_arg.betao2)
         del1 = 1.5 * ck2 * x3thm1 / (a1 * a1 * deep_arg.betao * deep_arg.betao2)
         ao = a1 * (1 - del1 * (0.5 * tothrd + del1 * (1 + 134 / 81 * del1)))
         delo = 1.5 * ck2 * x3thm1 / (ao * ao * deep_arg.betao * deep_arg.betao2)
@@ -1659,25 +1733,25 @@ class Predict {
         if (perigee < 156.0) {
           if (perigee <= 98.0) s4 = 20.0
           else s4 = perigee - 78.0
-          qoms24 = Math.pow((120 - s4) * ae / xkmper, 4)
+          qoms24 = pow((120 - s4) * ae / xkmper, 4)
           s4 = s4 / xkmper + ae
         }
         pinvsq = 1 / (deep_arg.aodp * deep_arg.aodp * deep_arg.betao2 * deep_arg.betao2)
-        deep_arg.sing = Math.sin(tle.omegao)
-        deep_arg.cosg = Math.cos(tle.omegao)
+        deep_arg.sing = sin(tle.omegao)
+        deep_arg.cosg = cos(tle.omegao)
         tsi = 1 / (deep_arg.aodp - s4)
         eta = deep_arg.aodp * tle.eo * tsi
         etasq = eta * eta
         eeta = tle.eo * eta
-        psisq = Math.abs(1 - etasq)
-        coef = qoms24 * Math.pow(tsi, 4)
-        coef1 = coef / Math.pow(psisq, 3.5)
+        psisq = abs(1 - etasq)
+        coef = qoms24 * pow(tsi, 4)
+        coef1 = coef / pow(psisq, 3.5)
         c2 = coef1 * deep_arg.xnodp * (deep_arg.aodp * (1 + 1.5 * etasq + eeta * (4 + etasq)) + 0.75 * ck2 * tsi / psisq * x3thm1 * (8 + 3 * etasq * (8 + etasq)))
         c1 = tle.bstar * c2
-        deep_arg.sinio = Math.sin(tle.xincl)
-        a3ovk2 = -xj3 / ck2 * Math.pow(ae, 3)
+        deep_arg.sinio = sin(tle.xincl)
+        a3ovk2 = -xj3 / ck2 * pow(ae, 3)
         x1mth2 = 1 - deep_arg.theta2
-        c4 = 2 * deep_arg.xnodp * coef1 * deep_arg.aodp * deep_arg.betao2 * (eta * (2 + 0.5 * etasq) + tle.eo * (0.5 + 2 * etasq) - 2 * ck2 * tsi / (deep_arg.aodp * psisq) * (-3 * x3thm1 * (1 - 2 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * x1mth2 * (2 * etasq - eeta * (1 + etasq)) * Math.cos(2 * tle.omegao)))
+        c4 = 2 * deep_arg.xnodp * coef1 * deep_arg.aodp * deep_arg.betao2 * (eta * (2 + 0.5 * etasq) + tle.eo * (0.5 + 2 * etasq) - 2 * ck2 * tsi / (deep_arg.aodp * psisq) * (-3 * x3thm1 * (1 - 2 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * x1mth2 * (2 * etasq - eeta * (1 + etasq)) * cos(2 * tle.omegao)))
         theta4 = deep_arg.theta2 * deep_arg.theta2
         temp1 = 3 * ck2 * pinvsq * deep_arg.xnodp
         temp2 = temp1 * ck2 * pinvsq
@@ -1707,34 +1781,34 @@ class Predict {
       deep_arg.t = tsince
       Deep(dpsec, tle, deep_arg)
       xmdf = deep_arg.xll
-      a = Math.pow(xke / deep_arg.xn, tothrd) * tempa * tempa
+      a = pow(xke / deep_arg.xn, tothrd) * tempa * tempa
       deep_arg.em = deep_arg.em - tempe
       xmam = xmdf + deep_arg.xnodp * templ
       /* Update for deep-space periodic effects */ deep_arg.xll = xmam
       Deep(dpper, tle, deep_arg)
       xmam = deep_arg.xll
       xl = xmam + deep_arg.omgadf + deep_arg.xnode
-      beta = Math.sqrt(1 - deep_arg.em * deep_arg.em)
-      deep_arg.xn = xke / Math.pow(a, 1.5)
-      /* Long period periodics */ axn = deep_arg.em * Math.cos(deep_arg.omgadf)
+      beta = sqrt(1 - deep_arg.em * deep_arg.em)
+      deep_arg.xn = xke / pow(a, 1.5)
+      /* Long period periodics */ axn = deep_arg.em * cos(deep_arg.omgadf)
       temp = 1 / (a * beta * beta)
       xll = temp * xlcof * axn
       aynl = temp * aycof
       xlt = xl + xll
-      ayn = deep_arg.em * Math.sin(deep_arg.omgadf) + aynl
+      ayn = deep_arg.em * sin(deep_arg.omgadf) + aynl
       /* Solve Kepler's Equation */ capu = FMod2p(xlt - deep_arg.xnode)
       temp2 = capu
       i = 0
       var needBreak = false;
       do {
-        sinepw = Math.sin(temp2)
-        cosepw = Math.cos(temp2)
+        sinepw = sin(temp2)
+        cosepw = cos(temp2)
         temp3 = axn * sinepw
         temp4 = ayn * cosepw
         temp5 = axn * cosepw
         temp6 = ayn * sinepw
         epw = (capu - temp4 + temp3 - temp2) / (1 - temp5 - temp6) + temp2
-        if (Math.abs(epw - temp2) <= e6a) needBreak = true //todo: break is not supported
+        if (abs(epw - temp2) <= e6a) needBreak = true //todo: break is not supported
         if (!needBreak) temp2 = epw
       } while ( {
         {
@@ -1749,10 +1823,10 @@ class Predict {
       pl = a * temp
       r = a * (1 - ecose)
       temp1 = 1 / r
-      rdot = xke * Math.sqrt(a) * esine * temp1
-      rfdot = xke * Math.sqrt(pl) * temp1
+      rdot = xke * sqrt(a) * esine * temp1
+      rfdot = xke * sqrt(pl) * temp1
       temp2 = a * temp1
-      betal = Math.sqrt(temp)
+      betal = sqrt(temp)
       temp3 = 1 / (1 + betal)
       cosu = temp2 * (cosepw - axn + ayn * esine * temp3)
       sinu = temp2 * (sinepw - ayn - axn * esine * temp3)
@@ -1768,12 +1842,12 @@ class Predict {
       xinck = deep_arg.xinc + 1.5 * temp2 * deep_arg.cosio * deep_arg.sinio * cos2u
       rdotk = rdot - deep_arg.xn * temp1 * x1mth2 * sin2u
       rfdotk = rfdot + deep_arg.xn * temp1 * (x1mth2 * cos2u + 1.5 * x3thm1)
-      /* Orientation vectors */ sinuk = Math.sin(uk)
-      cosuk = Math.cos(uk)
-      sinik = Math.sin(xinck)
-      cosik = Math.cos(xinck)
-      sinnok = Math.sin(xnodek)
-      cosnok = Math.cos(xnodek)
+      /* Orientation vectors */ sinuk = sin(uk)
+      cosuk = cos(uk)
+      sinik = sin(xinck)
+      cosik = cos(xinck)
+      sinnok = sin(xnodek)
+      cosnok = cos(xnodek)
       xmx = -sinnok * cosik
       xmy = cosnok * cosik
       ux = xmx * sinuk + cosnok * cosuk
@@ -1794,21 +1868,22 @@ class Predict {
     }
   }
 
-  def Calculate_User_PosVel(time: Double, geodetic: Predict#geodetic_t, obs_pos: Predict#vector_t, obs_vel: Predict#vector_t): Unit = {
+  def Calculate_User_PosVel(time: BigDecimal, geodetic: geodetic_t, obs_pos: vector_t, obs_vel: vector_t): Unit = {
     /* Calculate_User_PosVel() passes the user's geodetic position
         and the time of interest and returns the ECI position and
         velocity of the observer.  The velocity calculation assumes
         the geodetic position is stationary relative to the earth's
-        surface. *//* Reference:  The 1992 Astronomical Almanac, page K11. */ var c = .0
-    var sq = .0
-    var achcp = .0
+        surface. *//* Reference:  The 1992 Astronomical Almanac, page K11. */
+    var c = BigDecimal(.0)
+    var sq = BigDecimal(.0)
+    var achcp = BigDecimal(.0)
     geodetic.theta = FMod2p(ThetaG_JD(time) + geodetic.lon)
-    /* LMST */ c = 1 / Math.sqrt(1 + f * (f - 2) * Sqr(Math.sin(geodetic.lat)))
+    /* LMST */ c = 1 / sqrt(1 + f * (f - 2) * Sqr(sin(geodetic.lat)))
     sq = Sqr(1 - f) * c
-    achcp = (xkmper * c + geodetic.alt) * Math.cos(geodetic.lat)
-    obs_pos.x = achcp * Math.cos(geodetic.theta)
-    /* kilometers */ obs_pos.y = achcp * Math.sin(geodetic.theta)
-    obs_pos.z = (xkmper * sq + geodetic.alt) * Math.sin(geodetic.lat)
+    achcp = (xkmper * c + geodetic.alt) * cos(geodetic.lat)
+    obs_pos.x = achcp * cos(geodetic.theta)
+    /* kilometers */ obs_pos.y = achcp * sin(geodetic.theta)
+    obs_pos.z = (xkmper * sq + geodetic.alt) * sin(geodetic.lat)
     obs_vel.x = -mfactor * obs_pos.y
     /* kilometers/second */ obs_vel.y = mfactor * obs_pos.x
     obs_vel.z = 0
@@ -1816,37 +1891,57 @@ class Predict {
     Magnitude(obs_vel)
   }
 
-  def Calculate_LatLonAlt(time: Double, pos: Predict#vector_t, geodetic: Predict#geodetic_t): Unit = {
-    /* Procedure Calculate_LatLonAlt will calculate the geodetic  *//* position of an object given its ECI position pos and time. *//* It is intended to be used to determine the ground track of *//* a satellite.  The calculations  assume the earth to be an  *//* oblate spheroid as defined in WGS '72.                     *//* Reference:  The 1992 Astronomical Almanac, page K12. */ var r = .0
-    var e2 = .0
-    var phi = .0
-    var c = .0
+  def Calculate_LatLonAlt(time: BigDecimal, pos: vector_t, geodetic: geodetic_t): Unit = {
+    /* Procedure Calculate_LatLonAlt will calculate the geodetic  */
+    /* position of an object given its ECI position pos and time. */
+    /* It is intended to be used to determine the ground track of */
+    /* a satellite.  The calculations  assume the earth to be an  */
+    /* oblate spheroid as defined in WGS '72.                     */
+    /* Reference:  The 1992 Astronomical Almanac, page K12. */
+    var r = BigDecimal(.0)
+    var e2 = BigDecimal(.0)
+    var phi = BigDecimal(.0)
+    var c = BigDecimal(.0)
     geodetic.theta = AcTan(pos.y, pos.x)
     /* radians */ geodetic.lon = FMod2p(geodetic.theta - ThetaG_JD(time))
-    r = Math.sqrt(Sqr(pos.x) + Sqr(pos.y))
+    r = sqrt(Sqr(pos.x) + Sqr(pos.y))
     e2 = f * (2 - f)
     geodetic.lat = AcTan(pos.z, r)
     do {
       phi = geodetic.lat
-      c = 1 / Math.sqrt(1 - e2 * Sqr(Math.sin(phi)))
-      geodetic.lat = AcTan(pos.z + xkmper * c * e2 * Math.sin(phi), r)
+      c = 1 / sqrt(1 - e2 * Sqr(sin(phi)))
+      geodetic.lat = AcTan(pos.z + xkmper * c * e2 * sin(phi), r)
     } while ( {
-      Math.abs(geodetic.lat - phi) >= 1E-10
+      abs(geodetic.lat - phi) >= 1E-10
     })
-    geodetic.alt = r / Math.cos(geodetic.lat) - xkmper * c
+    geodetic.alt = r / cos(geodetic.lat) - xkmper * c
     if (geodetic.lat > pio2) geodetic.lat -= twopi
   }
 
-  def Calculate_Obs(time: Double, pos: vector_t, vel: vector_t, geodetic: geodetic_t, obs_set: vector_t): Unit = {
-    /* The procedures Calculate_Obs and Calculate_RADec calculate         *//* the *topocentric* coordinates of the object with ECI position,     *//* {pos}, and velocity, {vel}, from location {geodetic} at {time}.    *//* The {obs_set} returned for Calculate_Obs consists of azimuth,      *//* elevation, range, and range rate (in that order) with units of     *//* radians, radians, kilometers, and kilometers/second, respectively. *//* The WGS '72 geoid is used and the effect of atmospheric refraction *//* (under standard temperature and pressure) is incorporated into the *//* elevation calculation; the effect of atmospheric refraction on     *//* range and range rate has not yet been quantified.                  *//* The {obs_set} for Calculate_RADec consists of right ascension and  *//* declination (in that order) in radians.  Again, calculations are   *//* based on *topocentric* position using the WGS '72 geoid and        *//* incorporating atmospheric refraction.                              */ var sin_lat = .0
-    var cos_lat = .0
-    var sin_theta = .0
-    var cos_theta = .0
-    var el = .0
-    var azim = .0
-    var top_s = .0
-    var top_e = .0
-    var top_z = .0
+  def Calculate_Obs(time: BigDecimal, pos: vector_t, vel: vector_t, geodetic: geodetic_t, obs_set: vector_t): Unit = {
+    /* The procedures Calculate_Obs and Calculate_RADec calculate         */
+    /* the *topocentric* coordinates of the object with ECI position,     */
+    /* {pos}, and velocity, {vel}, from location {geodetic} at {time}.    */
+    /* The {obs_set} returned for Calculate_Obs consists of azimuth,      */
+    /* elevation, range, and range rate (in that order) with units of     */
+    /* radians, radians, kilometers, and kilometers/second, respectively. */
+    /* The WGS '72 geoid is used and the effect of atmospheric refraction */
+    /* (under standard temperature and pressure) is incorporated into the */
+    /* elevation calculation; the effect of atmospheric refraction on     */
+    /* range and range rate has not yet been quantified.                  */
+    /* The {obs_set} for Calculate_RADec consists of right ascension and  */
+    /* declination (in that order) in radians.  Again, calculations are   */
+    /* based on *topocentric* position using the WGS '72 geoid and        */
+    /* incorporating atmospheric refraction.                              */
+    var sin_lat = BigDecimal(.0)
+    var cos_lat = BigDecimal(.0)
+    var sin_theta = BigDecimal(.0)
+    var cos_theta = BigDecimal(.0)
+    var el = BigDecimal(.0)
+    var azim = BigDecimal(.0)
+    var top_s = BigDecimal(.0)
+    var top_e = BigDecimal(.0)
+    var top_z = BigDecimal(.0)
     val obs_pos = new vector_t
     val obs_vel = new vector_t
     val range = new vector_t
@@ -1862,14 +1957,14 @@ class Predict {
     rgvel.y = vel.y - obs_vel.y
     rgvel.z = vel.z - obs_vel.z
     Magnitude(range)
-    sin_lat = Math.sin(geodetic.lat)
-    cos_lat = Math.cos(geodetic.lat)
-    sin_theta = Math.sin(geodetic.theta)
-    cos_theta = Math.cos(geodetic.theta)
+    sin_lat = sin(geodetic.lat)
+    cos_lat = cos(geodetic.lat)
+    sin_theta = sin(geodetic.theta)
+    cos_theta = cos(geodetic.theta)
     top_s = sin_lat * cos_theta * range.x + sin_lat * sin_theta * range.y - cos_lat * range.z
     top_e = -sin_theta * range.x + cos_theta * range.y
     top_z = cos_lat * cos_theta * range.x + cos_lat * sin_theta * range.y + sin_lat * range.z
-    azim = Math.atan(-top_e / top_s)
+    azim = atan(-top_e / top_s)
     /* Azimuth */ if (top_s > 0.0) azim = azim + Math.PI
     if (azim < 0.0) azim = azim + twopi
     el = ArcSin(top_z / range.w)
@@ -1923,23 +2018,23 @@ class Predict {
   import java.io.InputStreamReader
 
   def InternalUpdate(x: Int): Unit = {
-    var tempnum = .0
+    var tempnum = BigDecimal(.0)
     sat.designator = sat.line1.split("[ \t]+")(2)
     sat.catnum = sat.line1.substring(2, 7).toLong
     sat.year = sat.line1.substring(18, 20).toInt
-    sat.refepoch = sat.line1.substring(20, 32).toDouble
-    tempnum = 1.0e-5 * sat.line1.substring(44, 50).toDouble
+    sat.refepoch = BigDecimal(sat.line1.substring(20, 32).trim)
+    tempnum = 1.0e-5 * BigDecimal(sat.line1.substring(44, 50).trim)
     sat.nddot6 = tempnum / Math.pow(10.0, sat.line1.charAt(51) - '0')
-    tempnum = 1.0e-5 * sat.line1.substring(53, 59).toDouble
+    tempnum = 1.0e-5 * BigDecimal(sat.line1.substring(53, 59).trim)
     sat.bstar = tempnum / Math.pow(10.0, sat.line1.charAt(60) - '0')
     sat.setnum = sat.line1.substring(64, 68).trim.toLong
-    sat.incl = sat.line2.substring(8, 16).toDouble
-    sat.raan = sat.line2.substring(17, 25).toDouble
-    sat.eccn = 1.0e-07 * sat.line2.substring(26, 33).toDouble
-    sat.argper = sat.line2.substring(34, 42).toDouble
-    sat.meanan = sat.line2.substring(43, 51).toDouble
-    sat.meanmo = sat.line2.substring(52, 63).toDouble
-    sat.drag = sat.line1.substring(33, 43).toDouble
+    sat.incl = BigDecimal(sat.line2.substring(8, 16).trim)
+    sat.raan = BigDecimal(sat.line2.substring(17, 25).trim)
+    sat.eccn = 1.0e-07 * BigDecimal(sat.line2.substring(26, 33).trim)
+    sat.argper = BigDecimal(sat.line2.substring(34, 42).trim)
+    sat.meanan = BigDecimal(sat.line2.substring(43, 51).trim)
+    sat.meanmo = BigDecimal(sat.line2.substring(52, 63).trim)
+    sat.drag = BigDecimal(sat.line1.substring(33, 43).trim)
     sat.orbitnum = sat.line2.substring(63, 68).toLong
   }
 
@@ -1962,22 +2057,21 @@ class Predict {
     else throw new RuntimeException("Invalid TLE File.")
   }
 
-
   def DayNum(mPara: Int, d: Int, yPara: Int): Long = {
     var y = yPara
     var m = mPara
     /* This function calculates the day number from m/d/y. */ var dn = 0L
-    var mm = .0
-    var yy = .0
+    var mm = BigDecimal(.0)
+    var yy = BigDecimal(.0)
     if (m < 3) {
       y -= 1
       m += 12
     }
     if (y < 57) y += 100
-    yy = y.toDouble
-    mm = m.toDouble
-    dn = (Math.floor(365.25 * (yy - 80.0)) - Math.floor(19.0 + yy / 100.0) + Math.floor(4.75 + yy / 400.0) - 16.0).toLong
-    dn += d + 30 * m + Math.floor(0.6 * mm - 0.3).toLong
+    yy = y
+    mm = m
+    dn = (floor(365.25 * (yy - 80.0)) - floor(19.0 + yy / 100.0) + floor(4.75 + yy / 400.0) - 16.0).toLong
+    dn += d + 30 * m + floor(0.6 * mm - 0.3).toLong
     dn
   }
 
@@ -1987,7 +2081,7 @@ class Predict {
         prepares the tracking code for the update. */ tle.sat_name = sat.name
     tle.idesg = sat.designator
     tle.catnr = sat.catnum
-    tle.epoch = (1000.0 * sat.year.asInstanceOf[Double]) + sat.refepoch
+    tle.epoch = (1000.0 * sat.year) + sat.refepoch
     tle.xndt2o = sat.drag
     tle.xndd6o = sat.nddot6
     tle.bstar = sat.bstar
@@ -2032,7 +2126,7 @@ class Predict {
       */
     /* Calculate satellite Azi, Ele, Range and Range-rate */ Calculate_Obs(jul_utc, pos, vel, obs_geodetic, obs_set)
     /* Calculate satellite Lat North, Lon East and Alt. */ Calculate_LatLonAlt(jul_utc, pos, sat_geodetic)
-    /* Calculate squint angle */ if (calc_squint != 0) squint = Math.acos(-((ax * rx + ay * ry + az * rz)) / obs_set.z) / deg2rad
+    /* Calculate squint angle */ if (calc_squint != 0) squint = acos(-((ax * rx + ay * ry + az * rz)) / obs_set.z) / deg2rad
     /* Calculate solar position and satellite eclipse depth. *//* Also set or clear the satellite eclipsed flag accordingly. */ Calculate_Solar_Position(jul_utc, solar_vector)
     Calculate_Obs(jul_utc, solar_vector, zero_vector, obs_geodetic, solar_set)
     val sat_eclipsed_ret = Sat_Eclipsed(pos, solar_vector, eclipse_depth)
@@ -2054,58 +2148,60 @@ class Predict {
     sat_lat = Degrees(sat_geodetic.lat)
     sat_lon = Degrees(sat_geodetic.lon)
     sat_alt = sat_geodetic.alt
-    fk = 12756.33 * Math.acos(xkmper / (xkmper + sat_alt))
+    fk = 12756.33 * acos(xkmper / (xkmper + sat_alt))
     fm = fk / 1.609344
-    rv = Math.floor((tle.xno * xmnpda / twopi + age * tle.bstar * ae) * age + tle.xmo / twopi).toLong + tle.revnum
+    rv = floor((tle.xno * xmnpda / twopi + age * tle.bstar * ae) * age + tle.xmo / twopi).toLong + tle.revnum
     sun_azi = Degrees(solar_set.x)
     sun_ele = Degrees(solar_set.y)
-    irk = Math.rint(sat_range).toLong
-    isplat = Math.rint(sat_lat).toInt
-    isplong = Math.rint(360.0 - sat_lon).toInt
-    iaz = Math.rint(sat_azi).toInt
-    iel = Math.rint(sat_ele).toInt
+    irk = rint(sat_range).toLong
+    isplat = rint(sat_lat).toInt
+    isplong = rint(360.0 - sat_lon).toInt
+    iaz = rint(sat_azi).toInt
+    iel = rint(sat_ele).toInt
     //char logb[50];
     //sprintf (logb, "%d plus %d is %d", a, b, a+b);
     //printf ("[%s] is a string %d chars long\n",buffer,n);
     //logh("in calc");
-    ma256 = Math.rint(256.0 * (phase / twopi)).toInt
-    if (sat_sun_status != 0) if (sun_ele <= -12.0 && Math.rint(sat_ele) >= 0.0) findsun = '+'
+    ma256 = rint(256.0 * (phase / twopi)).toInt
+    if (sat_sun_status != 0) if (sun_ele <= -12.0 && rint(sat_ele) >= 0.0) findsun = '+'
     else findsun = '*'
     else findsun = ' '
   }
 
   def AosHappens: Boolean = {
     /* This function returns a 1 if the satellite can ever rise above the
-           horizon of the ground station. */ var lin = .0
-    var sma = .0
-    var apogee = .0
+           horizon of the ground station. */
+    var lin = BigDecimal(.0)
+    var sma = BigDecimal(.0)
+    var apogee = BigDecimal(.0)
     if (sat.meanmo == 0.0) false
     else {
       lin = sat.incl
       if (lin >= 90.0) lin = 180.0 - lin
-      sma = 331.25 * Math.exp(Math.log(1440.0 / sat.meanmo) * (2.0 / 3.0))
+      sma = 331.25 * exp(log(1440.0 / sat.meanmo) * (2.0 / 3.0))
       apogee = sma * (1.0 + sat.eccn) - xkmper
-      if ((Math.acos(xkmper / (apogee + xkmper)) + (lin * deg2rad)) > Math.abs(qth.stnlat * deg2rad)) true
+      if ((acos(xkmper / (apogee + xkmper)) + (lin * deg2rad)) > abs(qth.stnlat * deg2rad)) true
       else false
     }
   }
 
 
-  def Decayed(time: Double): Boolean = {
+  def Decayed(time: BigDecimal): Boolean = {
     /* This function returns a 1 if it appears that the
         satellite pointed to by 'x' has decayed at the
         time of 'time'.  If 'time' is 0.0, then the
         current date/time is used. */ val satepoch = DayNum(1, 0, sat.year) + sat.refepoch
-    satepoch + ((16.666666 - sat.meanmo) / (10.0 * Math.abs(sat.drag))) < time
+    satepoch + ((16.666666 - sat.meanmo) / (10.0 * abs(sat.drag))) < time
   }
 
   def Geostationary: Boolean = {
     /* This function returns a 1 if the satellite
-        appears to be in a geostationary orbit */ Math.abs(sat.meanmo - 1.0027) < 0.0002
+        appears to be in a geostationary orbit */ abs(sat.meanmo - 1.0027) < 0.0002
   }
 
-  def FindAOS: Double = {
-    /* This function finds and returns the time of AOS (aostime). */ aostime = 0.0
+  def FindAOS: BigDecimal = {
+    /* This function finds and returns the time of AOS (aostime). */
+    aostime = BigDecimal(0.0)
     if (AosHappens && !Geostationary && !Decayed(daynum)) {
       Calc
       /* Get the satellite in range */ while ( {
@@ -2115,24 +2211,24 @@ class Predict {
         Calc
       }
       /* Find AOS */ while ( {
-        aostime == 0.0
-      }) if (Math.abs(sat_ele) < 0.03) aostime = daynum
+        aostime == BigDecimal(0.0)
+      }) if (abs(sat_ele) < 0.03) aostime = daynum
       else {
-        daynum -= sat_ele * Math.sqrt(sat_alt) / 530000.0
+        daynum -= sat_ele * sqrt(sat_alt) / 530000.0
         Calc
       }
     }
     aostime
   }
 
-  def FindLOS: Double = {
+  def FindLOS: BigDecimal = {
     lostime = 0.0
     if (Geostationary && AosHappens && !Decayed(daynum)) {
       Calc
       do {
-        daynum += sat_ele * Math.sqrt(sat_alt) / 502500.0
+        daynum += sat_ele * sqrt(sat_alt) / 502500.0
         Calc
-        if (Math.abs(sat_ele) < 0.03) lostime = daynum
+        if (abs(sat_ele) < 0.03) lostime = daynum
       } while ( {
         lostime == 0.0
       })
@@ -2142,12 +2238,12 @@ class Predict {
 
   def Predict(argv: Array[String]) = {
     val passDetail = new PassDetail
-    val startTime = argv(1).toDouble
-    obs_geodetic.lat = argv(2).toDouble * deg2rad
-    obs_geodetic.lon = argv(3).toDouble * deg2rad
-    obs_geodetic.alt = argv(4).toDouble / 1000.0
-    obs_geodetic.theta = 0.0
-    val div = argv(5).toDouble
+    val startTime = BigDecimal(argv(1))
+    obs_geodetic.lat = BigDecimal(argv(2)) * deg2rad
+    obs_geodetic.lon = BigDecimal(argv(3)) * deg2rad
+    obs_geodetic.alt = BigDecimal(argv(4)) / 1000.0
+    obs_geodetic.theta = BigDecimal(0.0)
+    val div = BigDecimal(argv(5))
     val quit = 0
     var lastel = 0
     var breakout = 0
@@ -2160,10 +2256,10 @@ class Predict {
         /* Display the pass */ while ( {
           iel >= 0 && quit == 0
         }) {
-          //        System.out.println(daynum + "\t" + sat_ele + "\t" + sat_azi + "\t" + sat_range)
+          //          println(daynum + "\t" + sat_ele + "\t" + sat_azi + "\t" + sat_range)
           passDetail.appendPosition(daynum, sat_ele, sat_azi, sat_range)
           lastel = iel
-          val deltaDaynum = 1.0 / 24.toDouble / 3600 / div
+          val deltaDaynum = 1.0 / 24 / 3600 / div
           daynum += deltaDaynum
           Calc
         }
@@ -2185,34 +2281,68 @@ class Predict {
     }
     else throw new RuntimeException("Can not predict.")
   }
+
+  var lastRevealedRange: BigDecimal = BigDecimal(0.0)
+  var lastRevealedDaynum: BigDecimal = BigDecimal(0.0)
+  var revealedCount = 0
+
+  private def reveal(daynum: BigDecimal, range: BigDecimal): Unit = {
+    val v = (range - lastRevealedRange) / ((daynum - lastRevealedDaynum)) / 24 / 3600 * 1000
+    println(v)
+    lastRevealedRange = range
+    lastRevealedDaynum = daynum
+    revealedCount += 1
+    if (revealedCount > 20) System.exit(0)
+  }
+}
+
+object Predict {
+  def dataTimeToDayNum(dataTime: LocalDateTime) = {
+    val s = dataTime.toEpochSecond(ZoneOffset.ofHours(8)) - 3651 * 24 * 3600l
+    s.toDouble / 3600 / 24
+  }
+
+  def dayNumToDateTime(dayNum: Double) = {
+    val time = ((dayNum * 3600 * 24) * 1000).toLong + 8 * 3600000l + 3651 * 24 * 3600000l
+    LocalDateTime.ofInstant(new Date(time).toInstant, ZoneId.of("UTC"))
+  }
+
 }
 
 object Main extends App {
+  val groundStationSH = (31.1241, 121.5467, 5.0)
+  val groundStationNS = (43.470, 87.177, 2028.0)
+  val groundStationDLH = (37.379, 97.727, 3153.0)
+  val groundStationAL = (32.326, 80.026, 5075.0)
+  val groundStationXL = (40.396, 117.577, 893.0)
+  val groundStationLJ = (26.694, 100.029, 3233.0)
+
+  val startTime = Predict.dataTimeToDayNum(LocalDateTime.of(2018, 7, 7, 2, 0, 0))
+  val groundStation = groundStationNS
   val predict = new Predict
   predict.ReadDataFiles(new File("predict.tle"))
-  val passDetail = predict.Predict(Array[String]("predict", "14051.23633", "32.326", "80.026", "5075.0", "1000"))
-  passDetail.reveal(10)
-
-//  val a = 1.248923478923472894712893712893712983712983712893791827389123
-//  val b = BigDecimal("1.248923478923472894712893712893712983712983712893791827389123")
-//  println(f"$a%3.20f")
-//  println(b)
+  val passDetail = predict.Predict(Array[String]("predict", s"$startTime", s"${groundStation._1}", s"${groundStation._2}", s"${groundStation._3}", "1"))
+  passDetail.output("Predict.csv")
 }
 
-class PassPosition(val daynum: Double, val ele: Double, val azi: Double, val range: Double) {
+class PassPosition(val daynum: BigDecimal, val ele: BigDecimal, val azi: BigDecimal, val range: BigDecimal) {
+  val localDateTime = Predict.dayNumToDateTime(daynum.toDouble)
+
   override def equals(obj: scala.Any): Boolean = {
     if (!obj.isInstanceOf[PassPosition]) return false
     val other = obj.asInstanceOf[PassPosition]
-    return near(daynum, other.daynum, 0.000001 / 24 / 3600) && near(ele, other.ele, 0.001) && near(azi, other.azi, 0.001) && near(range, other.range, 0.001)
+    return near(daynum, other.daynum, 0.001 / 24 / 3600) && near(ele, other.ele, 0.001) && near(azi, other.azi, 0.001) && near(range, other.range, 0.001)
   }
 
-  private def near(a: Double, b: Double, error: Double) = (a >= (b - error)) && (a <= b + error)
+  override def toString: String = s"${DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").format(localDateTime)}, $ele, $azi, $range"
+
+  private def near(a: BigDecimal, b: BigDecimal, error: BigDecimal) = (a >= (b - error)) && (a <= b + error)
 }
 
 class PassDetail {
   val passPositions = new ArrayBuffer[PassPosition]()
 
-  def appendPosition(daynum: Double, ele: Double, azi: Double, range: Double) {
+  def appendPosition(daynum: BigDecimal, ele: BigDecimal, azi: BigDecimal, range: BigDecimal) {
     passPositions += new PassPosition(daynum, ele, azi, range)
   }
 
@@ -2221,6 +2351,12 @@ class PassDetail {
       val v = (z._1.range - z._2.range) / ((z._1.daynum - z._2.daynum)) / 24 / 3600 * 1000
       println(v)
     })
+  }
+
+  def output(fileName: String) = {
+    val pw = new PrintWriter(fileName)
+    passPositions.foreach(pw.println)
+    pw.close
   }
 
   override def equals(obj: scala.Any): Boolean = {
