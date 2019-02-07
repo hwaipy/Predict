@@ -2048,6 +2048,10 @@ class Predict(val precision: Int = 16) {
     line1 = reader.readLine
     line2 = reader.readLine
     reader.close()
+    applyOrbitData(name, line1, line2)
+  }
+
+  def applyOrbitData(name: String, line1: String, line2: String): Unit = {
     if (KepCheck(line1, line2)) {
       sat.name = name
       sat.line1 = line1
@@ -2297,8 +2301,8 @@ class Predict(val precision: Int = 16) {
 }
 
 object Predict {
-  def dataTimeToDayNum(dataTime: LocalDateTime) = {
-    val s = dataTime.toEpochSecond(ZoneOffset.ofHours(8)) - 3651 * 24 * 3600l
+  def dateTimeToDayNum(dateTime: LocalDateTime) = {
+    val s = dateTime.toEpochSecond(ZoneOffset.ofHours(8)) - 3651 * 24 * 3600l
     s.toDouble / 3600 / 24
   }
 
@@ -2307,6 +2311,12 @@ object Predict {
     LocalDateTime.ofInstant(new Date(time).toInstant, ZoneId.of("UTC"))
   }
 
+  def predict(name: String, line1: String, line2: String, latitude: Double, longitude: Double, altitude: Double, startTime: LocalDateTime) = {
+    val predict = new Predict
+    predict.applyOrbitData(name, line1, line2)
+    val passDetail = predict.Predict(Array[String]("predict", s"${Predict.dateTimeToDayNum(startTime)}", s"${latitude}", s"${longitude}", s"${altitude}", "1"))
+    passDetail
+  }
 }
 
 object Main extends App {
@@ -2317,7 +2327,7 @@ object Main extends App {
   val groundStationXL = (40.396, 117.577, 893.0)
   val groundStationLJ = (26.694, 100.029, 3233.0)
 
-  val startTime = Predict.dataTimeToDayNum(LocalDateTime.of(2018, 7, 7, 2, 0, 0))
+  val startTime = Predict.dateTimeToDayNum(LocalDateTime.of(2018, 7, 7, 2, 0, 0))
   val groundStation = groundStationNS
   val predict = new Predict
   predict.ReadDataFiles(new File("predict.tle"))
