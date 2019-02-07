@@ -1,7 +1,12 @@
 package com.hwaipy.predict
 
-import java.io.File
+import java.io.{File, PrintWriter}
+import java.text.SimpleDateFormat
+
 import scala.collection.mutable.ArrayBuffer
+import java.util.Date
+
+import scala.io.Source
 
 class Predict {
   private val deg2rad = 1.745329251994330E-2
@@ -2187,11 +2192,40 @@ class Predict {
   }
 }
 
+
 object Main extends App {
-  val predict = new Predict
-  predict.ReadDataFiles(new File("predict.tle"))
-  val passDetail = predict.Predict(Array[String]("predict", "14051.23633", "32.326", "80.026", "5075.0", "1000"))
-  passDetail.reveal(10)
+  val dayNumDelta = 3651
+
+  def predictPass(startTime: Double, outputFile: File): Unit ={
+    val predict = new Predict
+    predict.ReadDataFiles(new File("predict.tle"))
+    val passDetail = predict.Predict(Array[String]("predict", s"${startTime}", "31.126", "121.542", "25.0", "1"))
+
+    val format = new SimpleDateFormat("yyyyMMdd  HHmmss")
+    val pw = new PrintWriter(outputFile)
+    passDetail.passPositions.foreach(pp=>{
+      val date = format.format(new Date(((pp.daynum + dayNumDelta)*24*3600*1000).toLong))
+      val line = f"00000  $date  ${pp.azi}%3.6f    0.000000    ${pp.ele}%3.6f    0.000000    1683.845614     406.515971"
+      pw.println(line)
+    })
+    pw.close()
+  }
+
+  val startTime = new Date().getTime / 1000.0 / 3600 / 24 - dayNumDelta
+//  val lines = Source.fromFile("B100.txt").getLines().toList
+//  val starNum = lines.size / 3
+//  Range(0, starNum).foreach(i => {
+//    val starName = lines(i * 3).replaceAll("/","").trim
+//    val pw = new PrintWriter("predict.tle")
+//    pw.println(lines(i * 3))
+//    pw.println(lines(i * 3 + 1))
+//    pw.println(lines(i * 3 + 2))
+//    pw.close()
+    predictPass(startTime, new File("predict"))
+//  })
+
+
+
 
 //  val a = 1.248923478923472894712893712893712983712983712893791827389123
 //  val b = BigDecimal("1.248923478923472894712893712893712983712983712893791827389123")
